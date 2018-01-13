@@ -15,37 +15,33 @@
  *****************************************************************************/
 
 /**
- * @file
- */
+ * @file planning_thread_pool.cc
+ **/
 
-#ifndef MODULES_PERCEPTION_PERCEPTION_H_
-#define MODULES_PERCEPTION_PERCEPTION_H_
+#include "modules/planning/common/planning_thread_pool.h"
 
-#include <string>
+#include "modules/planning/common/planning_gflags.h"
 
-#include "modules/common/apollo_app.h"
-#include "modules/perception/onboard/dag_streaming.h"
-
-/**
- * @namespace apollo::perception
- * @brief apollo::perception
- */
 namespace apollo {
-namespace perception {
+namespace planning {
 
-class Perception : public common::ApolloApp {
- public:
-  std::string Name() const override;
-  common::Status Init() override;
-  common::Status Start() override;
-  void Stop() override;
+PlanningThreadPool::PlanningThreadPool() {}
 
- private:
-  DAGStreaming dag_streaming_;
-  void RegistAllOnboardClass();
-};
+void PlanningThreadPool::Init() {
+  if (is_initialized) {
+    return;
+  }
+  thread_pool_.reset(
+      new common::util::ThreadPool(FLAGS_num_thread_planning_thread_pool));
+  is_initialized = true;
+}
 
-}  // namespace perception
+void PlanningThreadPool::Synchronize() {
+  for (auto& f : func_) {
+    f.wait();
+  }
+  func_.clear();
+}
+
+}  // namespace planning
 }  // namespace apollo
-
-#endif  // MODULES_PERCEPTION_PERCEPTION_H_
