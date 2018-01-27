@@ -21,8 +21,6 @@
 #include "modules/planning/common/reference_line_info.h"
 
 #include <functional>
-#include <memory>
-#include <unordered_set>
 #include <utility>
 
 #include "modules/planning/proto/sl_boundary.pb.h"
@@ -34,10 +32,12 @@
 #include "modules/map/hdmap/hdmap_common.h"
 #include "modules/map/hdmap/hdmap_util.h"
 #include "modules/planning/common/planning_gflags.h"
+#include "modules/planning/common/planning_thread_pool.h"
 
 namespace apollo {
 namespace planning {
 
+using apollo::canbus::Chassis;
 using apollo::common::EngageAdvice;
 using apollo::common::SLPoint;
 using apollo::common::TrajectoryPoint;
@@ -45,7 +45,6 @@ using apollo::common::VehicleConfigHelper;
 using apollo::common::VehicleSignal;
 using apollo::common::math::Box2d;
 using apollo::common::math::Vec2d;
-using apollo::canbus::Chassis;
 using apollo::common::util::Dropbox;
 
 ReferenceLineInfo::ReferenceLineInfo(const common::VehicleState& vehicle_state,
@@ -61,7 +60,7 @@ namespace {
 std::string junction_dropbox_id(const std::string& junction_id) {
   return "junction_protection_" + junction_id;
 }
-}
+}  // namespace
 
 bool ReferenceLineInfo::Init(const std::vector<const Obstacle*>& obstacles) {
   const auto& param = VehicleConfigHelper::GetConfig().vehicle_param();
@@ -122,13 +121,19 @@ ADCTrajectory::RightOfWayStatus ReferenceLineInfo::GetRightOfWayStatus() const {
     } else if (WithinOverlap(overlap, adc_sl_boundary_.end_s())) {
       auto* is_protected =
           junction_store->Get(junction_dropbox_id(overlap.object_id));
-      if (!is_protected) {
-        continue;
-      }
-      if (*is_protected) {
+      if (is_protected != nullptr && *is_protected) {
         return ADCTrajectory::PROTECTED;
       } else {
-        return ADCTrajectory::UNPROTECTED;
+        double junction_s = (overlap.end_s + overlap.start_s) / 2.0;
+        auto ref_point = reference_line_.GetReferencePoint(junction_s);
+        if (ref_point.lane_waypoints().empty()) {
+          return ADCTrajectory::PROTECTED;
+        }
+        for (const auto& waypoint : ref_point.lane_waypoints()) {
+          if (waypoint.lane->lane().turn() == hdmap::Lane::NO_TURN) {
+            return ADCTrajectory::PROTECTED;
+          }
+        }
       }
     }
   }
@@ -166,6 +171,12 @@ void ReferenceLineInfo::SetTrajectory(const DiscretizedTrajectory& trajectory) {
   discretized_trajectory_ = trajectory;
 }
 
+void ReferenceLineInfo::AddObstacleHelper(const Obstacle* obstacle, int* ret) {
+  auto* path_obstacle = AddObstacle(obstacle);
+  *ret = path_obstacle == nullptr ? 0 : 1;
+}
+
+// AddObstacle is thread safe
 PathObstacle* ReferenceLineInfo::AddObstacle(const Obstacle* obstacle) {
   if (!obstacle) {
     AERROR << "The provided obstacle is empty";
@@ -192,24 +203,41 @@ PathObstacle* ReferenceLineInfo::AddObstacle(const Obstacle* obstacle) {
                                       ignore);
     path_decision_.AddLongitudinalDecision("reference_line_filter",
                                            obstacle->Id(), ignore);
-    ADEBUG << "NO build sl boundary. id:" << obstacle->Id();
+    ADEBUG << "NO build reference line st boundary. id:" << obstacle->Id();
   } else {
-    ADEBUG << "build sl boundary. id:" << obstacle->Id();
-    path_obstacle->BuildStBoundary(reference_line_, adc_sl_boundary_.start_s());
-    ADEBUG << "st boundary: " << path_obstacle->st_boundary().min_t() << ", "
-           << path_obstacle->st_boundary().max_t()
-           << ", s_max: " << path_obstacle->st_boundary().max_s()
-           << ", s_min: " << path_obstacle->st_boundary().min_s();
+    ADEBUG << "build reference line st boundary. id:" << obstacle->Id();
+    path_obstacle->BuildReferenceLineStBoundary(reference_line_,
+                                                adc_sl_boundary_.start_s());
+
+    ADEBUG << "reference line st boundary: "
+           << path_obstacle->reference_line_st_boundary().min_t() << ", "
+           << path_obstacle->reference_line_st_boundary().max_t()
+           << ", s_max: " << path_obstacle->reference_line_st_boundary().max_s()
+           << ", s_min: "
+           << path_obstacle->reference_line_st_boundary().min_s();
   }
   return path_obstacle;
 }
 
 bool ReferenceLineInfo::AddObstacles(
     const std::vector<const Obstacle*>& obstacles) {
-  for (const auto* obstacle : obstacles) {
-    if (!AddObstacle(obstacle)) {
-      AERROR << "Failed to add obstacle " << obstacle->Id();
+  if (FLAGS_use_multi_thread_to_add_obstacles) {
+    std::vector<int> ret(obstacles.size(), 0);
+    for (size_t i = 0; i < obstacles.size(); ++i) {
+      const auto* obstacle = obstacles.at(i);
+      PlanningThreadPool::instance()->Push(std::bind(
+          &ReferenceLineInfo::AddObstacleHelper, this, obstacle, &(ret[i])));
+    }
+    PlanningThreadPool::instance()->Synchronize();
+    if (std::find(ret.begin(), ret.end(), 0) != ret.end()) {
       return false;
+    }
+  } else {
+    for (const auto* obstacle : obstacles) {
+      if (!AddObstacle(obstacle)) {
+        AERROR << "Failed to add obstacle " << obstacle->Id();
+        return false;
+      }
     }
   }
   return true;
@@ -574,13 +602,13 @@ void ReferenceLineInfo::ExportEngageAdvice(EngageAdvice* engage_advice) const {
       }
       engage_advice->set_reason("Vehicle heading is not aligned");
     } else {
-        if (vehicle_state_.driving_mode() !=
-            Chassis::DrivingMode::Chassis_DrivingMode_COMPLETE_AUTO_DRIVE) {
-          engage_advice->set_advice(EngageAdvice::READY_TO_ENGAGE);
-        } else {
-          engage_advice->set_advice(EngageAdvice::KEEP_ENGAGED);
-        }
+      if (vehicle_state_.driving_mode() !=
+          Chassis::DrivingMode::Chassis_DrivingMode_COMPLETE_AUTO_DRIVE) {
+        engage_advice->set_advice(EngageAdvice::READY_TO_ENGAGE);
+      } else {
+        engage_advice->set_advice(EngageAdvice::KEEP_ENGAGED);
       }
+    }
   }
   *prev_advice = *engage_advice;
 }

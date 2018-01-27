@@ -26,8 +26,10 @@
 #include "modules/common/vehicle_state/vehicle_state_provider.h"
 #include "modules/map/hdmap/hdmap_util.h"
 #include "modules/planning/common/planning_gflags.h"
+#include "modules/planning/common/planning_thread_pool.h"
 #include "modules/planning/common/trajectory/trajectory_stitcher.h"
 #include "modules/planning/planner/em/em_planner.h"
+#include "modules/planning/planner/lattice/lattice_planner.h"
 #include "modules/planning/planner/rtk/rtk_replay_planner.h"
 #include "modules/planning/reference_line/reference_line_provider.h"
 
@@ -37,26 +39,30 @@ namespace planning {
 using apollo::common::ErrorCode;
 using apollo::common::Status;
 using apollo::common::TrajectoryPoint;
-using apollo::common::VehicleStateProvider;
 using apollo::common::VehicleState;
+using apollo::common::VehicleStateProvider;
 using apollo::common::adapter::AdapterManager;
 using apollo::common::time::Clock;
 
-std::string Planning::Name() const { return "planning"; }
+std::string Planning::Name() const {
+  return "planning";
+}
 
 void Planning::RegisterPlanners() {
   planner_factory_.Register(
       PlanningConfig::RTK, []() -> Planner* { return new RTKReplayPlanner(); });
   planner_factory_.Register(PlanningConfig::EM,
                             []() -> Planner* { return new EMPlanner(); });
+  planner_factory_.Register(PlanningConfig::LATTICE,
+                            []() -> Planner* { return new LatticePlanner(); });
 }
 
 Status Planning::InitFrame(const uint32_t sequence_num,
                            const TrajectoryPoint& planning_start_point,
                            const double start_time,
                            const VehicleState& vehicle_state) {
-  frame_.reset(
-      new Frame(sequence_num, planning_start_point, start_time, vehicle_state));
+  frame_.reset(new Frame(sequence_num, planning_start_point, start_time,
+                         vehicle_state, reference_line_provider_.get()));
   auto status = frame_->Init();
   if (!status.ok()) {
     AERROR << "failed to init frame";
@@ -72,6 +78,10 @@ Status Planning::Init() {
   CHECK(apollo::common::util::GetProtoFromFile(FLAGS_planning_config_file,
                                                &config_))
       << "failed to load planning config file " << FLAGS_planning_config_file;
+
+  // initialize planning thread pool
+  PlanningThreadPool::instance()->Init();
+
   if (!AdapterManager::Initialized()) {
     AdapterManager::Init(FLAGS_planning_adapter_config_filename);
   }
@@ -106,8 +116,8 @@ Status Planning::Init() {
     AERROR << error_msg;
     return Status(ErrorCode::PLANNING_ERROR, error_msg);
   }
-  ReferenceLineProvider::instance()->Init(
-      hdmap_, config_.qp_spline_reference_line_smoother_config());
+  reference_line_provider_ = std::unique_ptr<ReferenceLineProvider>(
+      new ReferenceLineProvider(hdmap_, config_.smoother_type()));
 
   RegisterPlanners();
   planner_ = planner_factory_.CreateObject(config_.planner_type());
@@ -134,7 +144,7 @@ bool Planning::IsVehicleStateValid(const VehicleState& vehicle_state) {
 Status Planning::Start() {
   timer_ = AdapterManager::CreateTimer(
       ros::Duration(1.0 / FLAGS_planning_loop_rate), &Planning::OnTimer, this);
-  ReferenceLineProvider::instance()->Start();
+  reference_line_provider_->Start();
   start_time_ = Clock::NowInSeconds();
   AINFO << "Planning started";
   return Status::OK();
@@ -234,7 +244,7 @@ void Planning::RunOnce() {
     return;
   }
 
-  if (!ReferenceLineProvider::instance()->UpdateRoutingResponse(
+  if (!reference_line_provider_->UpdateRoutingResponse(
           AdapterManager::GetRoutingResponse()->GetLatestObserved())) {
     std::string msg("Failed to update routing in reference line provider");
     AERROR << msg;
@@ -249,7 +259,7 @@ void Planning::RunOnce() {
   }
 
   // Update reference line provider
-  ReferenceLineProvider::instance()->UpdateVehicleState(vehicle_state);
+  reference_line_provider_->UpdateVehicleState(vehicle_state);
 
   const double planning_cycle_time = 1.0 / FLAGS_planning_loop_rate;
   bool is_replan = false;
@@ -306,8 +316,8 @@ void Planning::RunOnce() {
 
   auto* ref_line_task =
       trajectory_pb->mutable_latency_stats()->add_task_stats();
-  ref_line_task->set_time_ms(
-      ReferenceLineProvider::instance()->LastTimeDelay() * 1000.0);
+  ref_line_task->set_time_ms(reference_line_provider_->LastTimeDelay() *
+                             1000.0);
   ref_line_task->set_name("ReferenceLineProvider");
 
   if (!status.ok()) {
@@ -329,7 +339,10 @@ void Planning::RunOnce() {
 
 void Planning::Stop() {
   AERROR << "Planning Stop is called";
-  ReferenceLineProvider::instance()->Stop();
+  PlanningThreadPool::instance()->Stop();
+  if (reference_line_provider_) {
+    reference_line_provider_->Stop();
+  }
   last_publishable_trajectory_.reset(nullptr);
   frame_.reset(nullptr);
   planner_.reset(nullptr);
@@ -364,34 +377,8 @@ Status Planning::Plan(const double current_time_stamp,
     ptr_debug->mutable_planning_data()->mutable_init_point()->CopyFrom(
         stitching_trajectory.back());
   }
-  auto status = Status::OK();
-  bool has_plan = false;
-  auto it = std::find_if(
-      frame_->reference_line_info().begin(),
-      frame_->reference_line_info().end(),
-      [](const ReferenceLineInfo& ref) { return ref.IsChangeLanePath(); });
-  if (it != frame_->reference_line_info().end()) {
-    status = planner_->Plan(stitching_trajectory.back(), frame_.get(), &(*it));
-    has_plan = (it->IsDrivable() && it->IsChangeLanePath() &&
-                it->TrajectoryLength() > FLAGS_change_lane_min_length);
-    if (!has_plan) {
-      AERROR << "Fail to plan for lane change.";
-    }
-  }
 
-  if (!has_plan || !FLAGS_prioritize_change_lane) {
-    for (auto& reference_line_info : frame_->reference_line_info()) {
-      if (reference_line_info.IsChangeLanePath()) {
-        continue;
-      }
-      status = planner_->Plan(stitching_trajectory.back(), frame_.get(),
-                              &reference_line_info);
-      if (status != Status::OK()) {
-        AERROR << "planner failed to make a driving plan for: "
-               << reference_line_info.Lanes().Id();
-      }
-    }
-  }
+  auto status = planner_->Plan(stitching_trajectory.back(), frame_.get());
 
   ExportReferenceLineDebug(ptr_debug);
 

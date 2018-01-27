@@ -22,6 +22,7 @@
 #include "modules/common/math/vec2d.h"
 #include "modules/common/time/time.h"
 #include "modules/common/util/file.h"
+#include "modules/prediction/common/feature_output.h"
 #include "modules/prediction/common/prediction_gflags.h"
 #include "modules/prediction/common/prediction_map.h"
 #include "modules/prediction/container/container_manager.h"
@@ -87,8 +88,14 @@ Status Prediction::Init() {
   // Set planning callback function
   AdapterManager::AddPlanningCallback(&Prediction::OnPlanning, this);
 
-  if (!PredictionMap::instance()->Ready()) {
+  if (!PredictionMap::Ready()) {
     return OnError("Map cannot be loaded.");
+  }
+
+  if (FLAGS_prediction_offline_mode) {
+    if (!FeatureOutput::Ready()) {
+      return OnError("Feature output is not ready.");
+    }
   }
 
   return Status::OK();
@@ -96,7 +103,11 @@ Status Prediction::Init() {
 
 Status Prediction::Start() { return Status::OK(); }
 
-void Prediction::Stop() {}
+void Prediction::Stop() {
+  if (FLAGS_prediction_offline_mode) {
+    FeatureOutput::Close();
+  }
+}
 
 void Prediction::OnLocalization(const LocalizationEstimate& localization) {
   ObstaclesContainer* obstacles_container = dynamic_cast<ObstaclesContainer*>(
@@ -107,15 +118,7 @@ void Prediction::OnLocalization(const LocalizationEstimate& localization) {
   PoseContainer* pose_container = dynamic_cast<PoseContainer*>(
       ContainerManager::instance()->GetContainer(AdapterConfig::LOCALIZATION));
   CHECK_NOTNULL(pose_container);
-
   pose_container->Insert(localization);
-  PerceptionObstacle* pose_ptr = pose_container->ToPerceptionObstacle();
-  if (pose_ptr != nullptr) {
-    obstacles_container->InsertPerceptionObstacle(
-        *(pose_ptr), pose_container->GetTimestamp());
-  } else {
-    ADEBUG << "Invalid pose found.";
-  }
 
   ADEBUG << "Received a localization message ["
          << localization.ShortDebugString() << "].";
@@ -161,9 +164,11 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
   CHECK_NOTNULL(pose_container);
   CHECK_NOTNULL(adc_container);
 
-  if (pose_container->ToPerceptionObstacle() != nullptr) {
-    double x = pose_container->ToPerceptionObstacle()->position().x();
-    double y = pose_container->ToPerceptionObstacle()->position().y();
+  PerceptionObstacle* adc = pose_container->ToPerceptionObstacle();
+  if (adc != nullptr) {
+    obstacles_container->InsertPerceptionObstacle(*adc, adc->timestamp());
+    double x = adc->position().x();
+    double y = adc->position().y();
     ADEBUG << "Get ADC position [" << std::fixed << std::setprecision(6) << x
            << ", " << std::fixed << std::setprecision(6) << y << "].";
     Vec2d adc_position(x, y);
@@ -172,6 +177,12 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
 
   // Make predictions
   EvaluatorManager::instance()->Run(perception_obstacles);
+
+  // No prediction for offline mode
+  if (FLAGS_prediction_offline_mode) {
+    return;
+  }
+
   PredictorManager::instance()->Run(perception_obstacles);
 
   auto prediction_obstacles =
@@ -195,11 +206,6 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
   }
 
   Publish(&prediction_obstacles);
-
-  ADEBUG << "Received a perception message ["
-         << perception_obstacles.ShortDebugString() << "].";
-  ADEBUG << "Published a prediction message ["
-         << prediction_obstacles.ShortDebugString() << "].";
 }
 
 Status Prediction::OnError(const std::string& error_msg) {

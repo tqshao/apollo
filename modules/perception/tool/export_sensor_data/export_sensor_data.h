@@ -14,14 +14,15 @@
  * limitations under the License.
  *****************************************************************************/
 
-#ifndef MODEULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
-#define MODEULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
+#ifndef MODULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
+#define MODULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
 
 #include <boost/circular_buffer.hpp>
 #include <memory>
 #include <string>
 #include <utility>
 
+#include "Eigen/Core"
 #include "modules/common/apollo_app.h"
 #include "modules/common/macro.h"
 #include "modules/perception/onboard/dag_streaming.h"
@@ -68,10 +69,11 @@ class ExportSensorData{
   boost::circular_buffer<LocalizationPair> localization_buffer_;
   ContiRadarIDExpansion _conti_id_expansion;
   Mutex mutex_;
+  Eigen::Matrix4d radar2velodyne_extrinsic_;
 };
 
 }  // namespace perception
 }  // namespace apollo
 
-#endif  // MODEULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
+#endif  // MODULES_PERCEPTION_TOOL_EXPORT_SENSOR_DATA_EXPORT_SENSOR_DATA_H_
 

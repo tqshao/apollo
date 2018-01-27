@@ -24,6 +24,7 @@ DECLARE_double(test_duration);
 
 DECLARE_string(planning_config_file);
 DECLARE_string(planning_adapter_config_filename);
+DECLARE_string(smoother_config_file);
 DECLARE_int32(planning_loop_rate);
 DECLARE_string(rtk_trajectory_filename);
 DECLARE_uint64(rtk_trajectory_forward);
@@ -40,7 +41,6 @@ DECLARE_double(prepare_rerouting_time);
 DECLARE_double(rerouting_cooldown_time);
 
 DECLARE_bool(enable_smooth_reference_line);
-DECLARE_bool(enable_spiral_reference_line);
 DECLARE_double(spiral_smoother_max_deviation);
 DECLARE_int32(spiral_smoother_num_iteration);
 DECLARE_double(spiral_smoother_piecewise_length);
@@ -110,12 +110,15 @@ DECLARE_double(min_stop_distance_obstacle);
 DECLARE_double(max_stop_distance_obstacle);
 DECLARE_double(stop_distance_destination);
 DECLARE_double(stop_distance_traffic_light);
+DECLARE_double(stop_distance_crosswalk);
+DECLARE_double(stop_distance_stop_sign);
 DECLARE_double(destination_check_distance);
 DECLARE_double(nudge_distance_obstacle);
 DECLARE_double(follow_min_distance);
 DECLARE_double(yield_min_distance);
 DECLARE_double(follow_time_buffer);
 DECLARE_double(follow_min_time_sec);
+DECLARE_double(within_lane_bound);
 
 DECLARE_string(destination_obstacle_id);
 DECLARE_double(virtual_stop_wall_length);
@@ -157,7 +160,7 @@ DECLARE_double(max_valid_stop_distance);
 
 /// Clear Zone
 DECLARE_string(clear_zone_virtual_object_id_prefix);
-/// triffic light
+/// traffic light
 DECLARE_string(signal_light_virtual_object_id_prefix);
 DECLARE_double(max_deacceleration_for_yellow_light_stop);
 /// crosswalk
@@ -173,6 +176,40 @@ DECLARE_double(stop_duration_for_stop_sign);
 
 DECLARE_bool(enable_sqp_solver);
 
+/// thread pool
+DECLARE_int32(num_thread_planning_thread_pool);
+DECLARE_bool(use_multi_thread_to_add_obstacles);
 DECLARE_bool(enable_multi_thread_in_dp_poly_path);
+DECLARE_bool(enable_multi_thread_in_dp_st_graph);
+
+// lattice planner
+DECLARE_double(lattice_epsilon);
+DECLARE_int32(num_lattice_traj_to_plot);
+DECLARE_double(default_cruise_speed);
+DECLARE_double(spiral_downsample_curvature_thred);
+DECLARE_bool(enable_sample_bound_planning);
+DECLARE_bool(enable_lattice_st_image_dump);
+DECLARE_bool(enable_auto_tuning);
+DECLARE_double(trajectory_time_resolution);
+DECLARE_double(trajectory_space_resolution);
+DECLARE_double(lateral_acceleration_bound);
+DECLARE_double(collision_buffer_expansion_ratio);
+DECLARE_double(decision_horizon);
+DECLARE_double(lateral_obstacle_ignore_thred);
+DECLARE_bool(enable_backup_trajectory);
+DECLARE_double(backup_trajectory_cost);
+
+// Lattice Evaluate Parameters
+DECLARE_double(weight_lon_travel);
+DECLARE_double(weight_lon_jerk);
+DECLARE_double(weight_lon_collision);
+DECLARE_double(weight_lat_offset);
+DECLARE_double(weight_same_side_offset);
+DECLARE_double(weight_opposite_side_offset);
+DECLARE_double(weight_dist_travelled);
+DECLARE_double(weight_target_speed);
+DECLARE_double(lat_offset_bound);
+DECLARE_double(lon_collision_buffer);
+DECLARE_double(lon_collision_cost_std);
 
 #endif  // MODULES_PLANNING_COMMON_PLANNING_GFLAGS_H

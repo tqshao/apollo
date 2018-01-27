@@ -30,8 +30,10 @@
 
 #include "Eigen/Dense"
 
+#include "modules/common/filters/digital_filter.h"
 #include "modules/common/proto/error_code.pb.h"
 #include "modules/perception/proto/perception_obstacle.pb.h"
+#include "modules/prediction/container/obstacles/obstacle_clusters.h"
 #include "modules/prediction/proto/feature.pb.h"
 
 #include "modules/common/math/kalman_filter.h"
@@ -53,7 +55,7 @@ class Obstacle {
   /**
    * @brief Constructor
    */
-  Obstacle() = default;
+  Obstacle();
 
   /**
    * @brief Destructor
@@ -66,7 +68,8 @@ class Obstacle {
    * @param timestamp The timestamp when the perception obstacle was detected.
    */
   void Insert(const perception::PerceptionObstacle& perception_obstacle,
-              const double timestamp);
+              const double timestamp,
+              ObstacleClusters* const obstacle_clusters);
 
   /**
    * @brief Get the type of perception obstacle's type.
@@ -185,7 +188,8 @@ class Obstacle {
       Feature* feature);
 
   common::ErrorCode SetType(
-      const perception::PerceptionObstacle& perception_obstacle);
+      const perception::PerceptionObstacle& perception_obstacle,
+      Feature* feature);
 
   void SetTimestamp(const perception::PerceptionObstacle& perception_obstacle,
                     const double timestamp, Feature* feature);
@@ -228,7 +232,8 @@ class Obstacle {
 
   void SetNearbyLanes(Feature* feature);
 
-  void SetLaneGraphFeature(Feature* feature);
+  void SetLaneGraphFeature(Feature* feature,
+                           ObstacleClusters* const obstacle_clusters);
 
   void SetLanePoints(Feature* feature);
 
@@ -249,6 +254,7 @@ class Obstacle {
   std::deque<Feature> feature_history_;
   common::math::KalmanFilter<double, 6, 2, 0> kf_motion_tracker_;
   common::math::KalmanFilter<double, 2, 2, 4> kf_pedestrian_tracker_;
+  common::DigitalFilter heading_filter_;
   std::unordered_map<std::string, common::math::KalmanFilter<double, 4, 2, 0>>
       kf_lane_trackers_;
   std::vector<std::shared_ptr<const hdmap::LaneInfo>> current_lanes_;

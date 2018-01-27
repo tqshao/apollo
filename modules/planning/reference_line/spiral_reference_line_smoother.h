@@ -37,7 +37,7 @@ namespace planning {
 class SpiralReferenceLineSmoother : public ReferenceLineSmoother {
  public:
   explicit SpiralReferenceLineSmoother(
-      const double max_point_deviation_distance);
+      const ReferenceLineSmootherConfig& config);
 
   virtual ~SpiralReferenceLineSmoother() = default;
 
@@ -71,6 +71,10 @@ class SpiralReferenceLineSmoother : public ReferenceLineSmoother {
                                   const double kappa,
                                   const double dkappa) const;
 
+  int DownSampleRawReferenceLine(
+      const std::vector<Eigen::Vector2d>& raw_point2d,
+      std::vector<Eigen::Vector2d>* down_sampled_raw_point2d);
+
   double default_max_point_deviation_ = 0.0;
 
   std::vector<AnchorPoint> anchor_points_;
@@ -86,6 +90,10 @@ class SpiralReferenceLineSmoother : public ReferenceLineSmoother {
   double fixed_start_kappa_ = 0.0;
 
   double fixed_start_dkappa_ = 0.0;
+
+  double fixed_end_x_ = 0.0;
+
+  double fixed_end_y_ = 0.0;
 
   double zero_x_ = 0.0;
 

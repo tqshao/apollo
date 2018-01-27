@@ -20,4 +20,40 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "constraint_checker1d",
+    srcs = [
+        "constraint_checker1d.cc",
+    ],
+    hdrs = [
+        "constraint_checker1d.h",
+    ],
+    deps = [
+        "//modules/planning/math/curve1d:curve1d",
+        "//modules/planning/common:planning_gflags",
+        "//modules/common:log",
+        "//modules/planning/common/trajectory:discretized_trajectory",
+        "//modules/planning/common:frame",
+    ],
+)
+
+cc_library(
+    name = "collision_checker",
+    srcs = [
+        "collision_checker.cc",
+    ],
+    hdrs = [
+        "collision_checker.h",
+    ],
+    deps = [
+        "//modules/common:log",
+        "//modules/common/math:box2d",
+        "//modules/planning/common:frame",
+        "//modules/planning/common:obstacle",
+        "//modules/planning/common/trajectory:discretized_trajectory",
+        "//modules/prediction/proto:prediction_proto",
+        "//modules/common/configs:vehicle_config_helper",
+    ],
+)
+
 cpplint()

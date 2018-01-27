@@ -41,7 +41,6 @@ cc_library(
     hdrs = ["prediction_map.h"],
     deps = [
         ":prediction_gflags",
-        "//modules/common:macro",
         "//modules/common/configs:config_gflags",
         "//modules/common/math:linear_interpolation",
         "//modules/common/math:vec2d",
@@ -66,6 +65,29 @@ cc_test(
         ":prediction_map",
         "@gtest//:main",
     ],
+)
+
+cc_library(
+    name = "feature_output",
+    srcs = ["feature_output.cc"],
+    hdrs = ["feature_output.h"],
+    deps = [
+        "//modules/prediction/proto:feature_proto",
+        "//modules/prediction/proto:offline_features_proto",
+        "//modules/prediction/common:prediction_gflags",
+        "//modules/common:log",
+        "//modules/common/util:util",
+    ]
+)
+
+cc_test(
+    name = "feature_output_test",
+    size = "small",
+    srcs = ["feature_output_test.cc"],
+    deps = [
+        ":feature_output",
+        "@gtest//:main",
+    ]
 )
 
 cc_library(

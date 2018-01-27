@@ -17,9 +17,10 @@
 ###############################################################################
 
 INCHINA="no"
+LOCAL_IMAGE="no"
 VERSION=""
 ARCH=$(uname -m)
-VERSION_X86_64="dev-x86_64-20180103_1300"
+VERSION_X86_64="dev-x86_64-20180123_1329"
 VERSION_AARCH64="dev-aarch64-20170927_1111"
 VERSION_OPT=""
 
@@ -31,6 +32,7 @@ OPTIONS:
     -C  pull docker image from China mirror
     -h, --help   display this help and exit
     -image <version>    specify which version of a docker image to pull
+    -l   use local docker image
 EOF
 exit 0
 }
@@ -57,6 +59,9 @@ do
         ;;
     -h|--help)
         show_usage
+        ;;
+    -l|--local)
+        LOCAL_IMAGE="yes"
         ;;
     *)
         echo -e "\033[93mWarning\033[0m: Unknown option: $1"
@@ -98,11 +103,15 @@ source ${APOLLO_ROOT_DIR}/scripts/apollo_base.sh
 
 function main(){
 
-    info "Start pulling docker image $IMG ..."
-    docker pull $IMG
-    if [ $? -ne 0 ];then
-        error "Failed to pull docker image."
-        exit 1
+    if [ "$LOCAL_IMAGE" = "yes" ];then
+        info "Start docker container based on local image : $IMG"
+    else
+        info "Start pulling docker image $IMG ..."
+        docker pull $IMG
+        if [ $? -ne 0 ];then
+            error "Failed to pull docker image."
+            exit 1
+        fi
     fi
 
     docker ps -a --format "{{.Names}}" | grep 'apollo_dev' 1>/dev/null
@@ -133,11 +142,19 @@ function main(){
         mkdir "$HOME/.cache"
     fi
 
+    LOCALIZATION_VOLUME=apollo_localization_volume
+    docker stop ${LOCALIZATION_VOLUME} > /dev/null 2>&1
+
+    LOCALIZATION_VOLUME_IMAGE=apolloauto/apollo:localization_volume-${ARCH}-latest
+    docker pull ${LOCALIZATION_VOLUME_IMAGE}
+    docker run -it -d --rm --name ${LOCALIZATION_VOLUME} ${LOCALIZATION_VOLUME_IMAGE}
+
     info "Starting docker container \"apollo_dev\" ..."
     docker run -it \
         -d \
         --privileged \
         --name apollo_dev \
+        --volumes-from ${LOCALIZATION_VOLUME} \
         -e DISPLAY=$display \
         -e DOCKER_USER=$USER \
         -e USER=$USER \
@@ -158,7 +175,7 @@ function main(){
         --add-host in_dev_docker:127.0.0.1 \
         --add-host ${LOCAL_HOST}:127.0.0.1 \
         --hostname in_dev_docker \
-        --shm-size 512M \
+        --shm-size 2G \
         $IMG \
         /bin/bash
 

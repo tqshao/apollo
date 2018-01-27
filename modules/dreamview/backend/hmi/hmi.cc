@@ -38,9 +38,9 @@
 DEFINE_string(global_flagfile, "modules/common/data/global_flagfile.txt",
               "Global flagfile shared by all modules.");
 
-DEFINE_string(map_data_path, "modules/map/data", "Path to map data.");
+DEFINE_string(map_data_path, "/apollo/modules/map/data", "Path to map data.");
 
-DEFINE_string(vehicle_data_path, "modules/calibration/data",
+DEFINE_string(vehicle_data_path, "/apollo/modules/calibration/data",
               "Path to vehicle data.");
 
 DEFINE_string(ota_service_url, "http://180.76.145.202:5000/query",
@@ -48,12 +48,16 @@ DEFINE_string(ota_service_url, "http://180.76.145.202:5000/query",
 DEFINE_string(ota_vehicle_info_file, "modules/tools/ota/vehicle_info.pb.txt",
               "Vehicle info to request OTA.");
 
+DEFINE_double(system_status_lifetime_seconds, 30,
+              "Lifetime of a valid SystemStatus message.");
+
 namespace apollo {
 namespace dreamview {
 namespace {
 
 using apollo::canbus::Chassis;
 using apollo::common::adapter::AdapterManager;
+using apollo::common::time::Clock;
 using apollo::common::util::FindOrNull;
 using apollo::common::util::GetProtoFromASCIIFile;
 using apollo::common::util::JsonUtil;
@@ -134,9 +138,16 @@ bool GuaranteeDrivingMode(const Chassis::DrivingMode target_mode,
 }  // namespace
 
 HMI::HMI(WebSocketHandler *websocket, MapService *map_service)
-    : websocket_(websocket), map_service_(map_service) {
+    : websocket_(websocket),
+      map_service_(map_service),
+      logger_(apollo::common::monitor::MonitorMessageItem::HMI) {
   CHECK(common::util::GetProtoFromFile(FLAGS_hmi_config_filename, &config_))
       << "Unable to parse HMI config file " << FLAGS_hmi_config_filename;
+
+  if (const char* docker_image = std::getenv("DOCKER_IMG")) {
+    config_.set_docker_image(docker_image);
+  }
+
   // If the module path doesn't exist, remove it from list.
   auto *modules = config_.mutable_modules();
   for (auto iter = modules->begin(); iter != modules->end();) {
@@ -282,16 +293,28 @@ void HMI::RegisterMessageHandlers() {
   // Received new system status, broadcast to clients.
   AdapterManager::AddSystemStatusCallback(
       [this](const monitor::SystemStatus &system_status) {
-        *status_.mutable_system_status() = system_status;
-        BroadcastHMIStatus();
+        if (Clock::NowInSeconds() - system_status.header().timestamp_sec() <
+            FLAGS_system_status_lifetime_seconds) {
+          *status_.mutable_system_status() = system_status;
+          BroadcastHMIStatus();
+        }
       });
 }
 
-void HMI::BroadcastHMIStatus() const {
+void HMI::BroadcastHMIStatus() {
   // In unit tests, we may leave websocket_ as NULL and skip broadcasting.
   if (websocket_) {
     websocket_->BroadcastData(
         JsonUtil::ProtoToTypedJson("HMIStatus", status_).dump());
+  }
+
+  // Broadcast messages.
+  apollo::common::monitor::MonitorLogBuffer log_buffer(&logger_);
+  if (status_.current_map().empty()) {
+    log_buffer.WARN("You haven't select map yet!");
+  }
+  if (status_.current_vehicle().empty()) {
+    log_buffer.WARN("You haven't select vehicle yet!");
   }
 }
 

@@ -1,6 +1,10 @@
 import STORE from "store";
 import RENDERER from "renderer";
 
+const protobuf = require("protobufjs/light");
+const root = protobuf.Root.fromJSON(require("../../../proto_bundle/proto_bundle.json"));
+const SimWorldMessage = root.lookupType("apollo.dreamview.SimulationWorld");
+
 export default class RosWebSocketEndpoint {
     constructor(serverAddr) {
         this.serverAddr = serverAddr;
@@ -16,6 +20,7 @@ export default class RosWebSocketEndpoint {
         this.counter = 0;
         try {
             this.websocket = new WebSocket(this.serverAddr);
+            this.websocket.binaryType = "arraybuffer";
         } catch (error) {
             console.error("Failed to establish a connection: " + error);
             setTimeout(() => {
@@ -24,7 +29,15 @@ export default class RosWebSocketEndpoint {
             return;
         }
         this.websocket.onmessage = event => {
-            const message = JSON.parse(event.data);
+            let message = null;
+            if (typeof event.data === "string") {
+                message = JSON.parse(event.data);
+            } else {
+                message = SimWorldMessage.toObject(
+                        SimWorldMessage.decode(new Uint8Array(event.data)),
+                        {enums: String});
+                message.type = "SimWorldUpdate";
+            }
 
             switch (message.type) {
                 case "HMIConfig":
@@ -37,18 +50,17 @@ export default class RosWebSocketEndpoint {
                     this.checkMessage(message);
 
                     STORE.updateTimestamp(message.timestamp);
-                    STORE.updateWorldTimestamp(message.world.timestampSec);
-                    STORE.updateModuleDelay(message.world);
+                    STORE.updateModuleDelay(message);
                     RENDERER.maybeInitializeOffest(
-                        message.world.autoDrivingCar.positionX,
-                        message.world.autoDrivingCar.positionY);
-                    RENDERER.updateWorld(message.world, message.planningData);
-                    STORE.meters.update(message.world);
-                    STORE.monitor.update(message.world);
-                    STORE.trafficSignal.update(message.world);
-                    STORE.hmi.update(message.world);
+                        message.autoDrivingCar.positionX,
+                        message.autoDrivingCar.positionY);
+                    RENDERER.updateWorld(message);
+                    STORE.meters.update(message);
+                    STORE.monitor.update(message);
+                    STORE.trafficSignal.update(message);
+                    STORE.hmi.update(message);
                     if (STORE.options.showPNCMonitor) {
-                        STORE.planning.update(message.world, message.planningData);
+                        STORE.planning.update(message);
                     }
                     if (message.mapHash && (this.counter % 10 === 0)) {
                         // NOTE: This is a hack to limit the rate of map updates.
@@ -59,7 +71,7 @@ export default class RosWebSocketEndpoint {
                     }
                     this.counter += 1;
                     break;
-                case "MapElements":
+                case "MapElementIds":
                     RENDERER.updateMapIndex(message.mapHash,
                             message.mapElementIds, message.mapRadius);
                     break;
@@ -96,19 +108,19 @@ export default class RosWebSocketEndpoint {
         }, 100);
     }
 
-    checkMessage(message) {
+    checkMessage(world) {
         if (this.lastUpdateTimestamp !== 0
-            && message.timestamp - this.lastUpdateTimestamp > 150) {
+            && world.timestamp - this.lastUpdateTimestamp > 150) {
             console.log("Last sim_world_update took " +
-                (message.timestamp - this.lastUpdateTimestamp) + "ms");
+                (world.timestamp - this.lastUpdateTimestamp) + "ms");
         }
-        this.lastUpdateTimestamp = message.timestamp;
+        this.lastUpdateTimestamp = world.timestamp;
         if (this.lastSeqNum !== -1
-            && message.world.sequenceNum > this.lastSeqNum + 1) {
+            && world.sequenceNum > this.lastSeqNum + 1) {
             console.debug("Last seq: " + this.lastSeqNum +
-                ". New seq: " + message.world.sequenceNum + ".");
+                ". New seq: " + world.sequenceNum + ".");
         }
-        this.lastSeqNum = message.world.sequenceNum;
+        this.lastSeqNum = world.sequenceNum;
     }
 
     requestMapData(elements) {
@@ -118,9 +130,9 @@ export default class RosWebSocketEndpoint {
         }));
     }
 
-    requestMapElementsByRadius(radius) {
+    requestMapElementIdsByRadius(radius) {
         this.websocket.send(JSON.stringify({
-            type: "RetrieveMapElementsByRadius",
+            type: "RetrieveMapElementIdsByRadius",
             radius: radius,
         }));
     }

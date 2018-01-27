@@ -79,10 +79,9 @@ void LaneSequencePredictor::Predict(Obstacle* obstacle) {
 
     std::string curr_lane_id = sequence.lane_segment(0).lane_id();
     std::vector<TrajectoryPoint> points;
-    double prediction_total_time = FLAGS_prediction_pedestrian_total_time;
     DrawLaneSequenceTrajectoryPoints(
         feature, curr_lane_id, obstacle->kf_lane_tracker(curr_lane_id),
-        sequence, prediction_total_time, FLAGS_prediction_period, &points);
+        sequence, FLAGS_prediction_duration, FLAGS_prediction_period, &points);
 
     Trajectory trajectory = GenerateTrajectory(points);
     trajectory.set_probability(sequence.probability());
@@ -100,12 +99,10 @@ void LaneSequencePredictor::DrawLaneSequenceTrajectoryPoints(
   Eigen::Matrix<double, 4, 1> state(kf.GetStateEstimate());
 
   Eigen::Vector2d position(feature.position().x(), feature.position().y());
-  std::shared_ptr<const LaneInfo> lane_info =
-      PredictionMap::instance()->LaneById(lane_id);
+  std::shared_ptr<const LaneInfo> lane_info = PredictionMap::LaneById(lane_id);
   double lane_s = 0.0;
   double lane_l = 0.0;
-  if (PredictionMap::instance()->GetProjection(position, lane_info, &lane_s,
-                                               &lane_l)) {
+  if (PredictionMap::GetProjection(position, lane_info, &lane_s, &lane_l)) {
     state(0, 0) = lane_s;
     state(1, 0) = lane_l;
     state(2, 0) = feature.speed();
