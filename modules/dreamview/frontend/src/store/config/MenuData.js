@@ -53,10 +53,19 @@ export default [
         title: 'Planning',
         type: 'checkbox',
         data: {
+            planningCar: 'Planning Car',
             planningLine: 'Planning Line',
             planningQpOptimizer: 'Qp Optimizer Line',
-            planingDpOptimizer: 'Dp Optimizer Line',
+            planningDpOptimizer: 'Dp Optimizer Line',
             planningReference: 'Reference Line',
+        }
+    }, {
+        id: 'position',
+        title: 'Position',
+        type: 'checkbox',
+        data: {
+            positionLocalization: 'Localization',
+            positionGps: 'GPS',
         }
     },
 ];

@@ -46,6 +46,10 @@ class SunnyvaleBigLoopTest : public PlanningTestBase {
     FLAGS_test_base_map_filename = "base_map.bin";
     FLAGS_test_data_dir = "modules/planning/testdata/sunnyvale_big_loop_test";
     FLAGS_planning_upper_speed_limit = 12.5;
+
+    FLAGS_enable_stop_sign = false;
+    FLAGS_enable_crosswalk = false;
+    FLAGS_enable_keep_clear = false;
   }
 };
 
@@ -164,9 +168,11 @@ TEST_F(SunnyvaleBigLoopTest, stop_sign_04) {
 
 /*
  * stop_sign:
+ * bag: 2018-01-24-11-32-28/2018-01-24-11-32-30_0.bag
  * step 1:
  *   adc decision: STOP
- * step 2: wait_time =4, other vehicles at other stop sign later than adc
+ * step 2:
+ *   wait_time = 4, other vehicles arrived at other stop sign later than adc
  *   adc status: STOPPING => STOP_DONE
  *   decision: CRUISE
  */
@@ -191,6 +197,122 @@ TEST_F(SunnyvaleBigLoopTest, stop_sign_05) {
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
   RUN_GOLDEN_TEST(1);
+}
+
+/*
+ * stop_sign:
+ * bag: 2018-01-24-11-36-55/2018-01-24-11-36-55
+ * step 1:
+ *   adc decision: STOP
+ * step 2:
+ *   wait_time = 4, other vehicles arrived at other stop sign earlier than adc
+ *   adc status: STOPPING => STOPPING (i.e. waiting)
+ *   decision: STOP
+ * step 3:
+ *   wait_time = 4,
+ *     and other vehicles arrived at other stop sign earlier than adc GONE
+ *   adc status: STOPPING => STOPPING => STOP_DONE
+ *   decision: CRUISE
+ */
+TEST_F(SunnyvaleBigLoopTest, stop_sign_06) {
+  FLAGS_enable_stop_sign = true;
+
+  std::string seq_num = "5";
+  FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
+  FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(0);
+
+  // step 2:
+  // wait time is enough
+  // but vehicles are still there (use the same data as previous test)
+
+  // set dropbox
+  double stop_start_time = Clock::NowInSeconds() - 4;
+  Dropbox<double>::Open()->Set("kStopSignStopStarttime_1022", stop_start_time);
+
+  seq_num = "6";
+  FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(1);
+
+  // check dropbox value on watch vehicles
+  // waiting for vehicle 4059 on lane 868_1_-1
+  std::string db_key_watch_vehicle = "kStopSignWatchVehicle_868_1_-1";
+  std::vector<std::string>* value =
+      Dropbox<std::vector<std::string>>::Open()->Get(db_key_watch_vehicle);
+  EXPECT_TRUE(value != nullptr && (*value)[0] == "4059");
+
+  // step 3:
+  // wait time is enough
+  // previously watch vehicles are gone
+
+  // set dropbox
+  stop_start_time = Clock::NowInSeconds() - 4;
+  Dropbox<double>::Open()->Set("kStopSignStopStarttime_1022", stop_start_time);
+
+  seq_num = "7";
+  FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(2);
+}
+
+/*
+ * crosswalk: pedestrian on crosswalk
+ * bag: 2018-01-29-17-22-46/2018-01-29-17-31-47_9.bag
+ * decision: STOP
+ */
+TEST_F(SunnyvaleBigLoopTest, crosswalk_01) {
+  FLAGS_enable_crosswalk = true;
+  FLAGS_enable_traffic_light = false;
+
+  std::string seq_num = "8";
+  FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
+  FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(0);
+  FLAGS_enable_traffic_light = true;
+}
+
+/*
+ * kee_clear: not blocking, KEEP_CLEAR static obstacle built
+ * bag: 2018-01-29-17-22-46/2018-01-29-17-22-47_0.bag
+ * decision: CRUISE
+ */
+TEST_F(SunnyvaleBigLoopTest, keep_clear_01) {
+  FLAGS_enable_keep_clear = true;
+  FLAGS_enable_traffic_light = false;
+
+  std::string seq_num = "9";
+  FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
+  FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(0);
+}
+
+TEST_F(SunnyvaleBigLoopTest, traffic_light_green) {
+  std::string seq_num = "10";
+  FLAGS_enable_traffic_light = true;
+  FLAGS_enable_prediction = false;
+  FLAGS_enable_keep_clear = false;
+
+  FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
+  FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
+  FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
+  FLAGS_test_traffic_light_file = seq_num + "_traffic_light.pb.txt";
+  PlanningTestBase::SetUp();
+  RUN_GOLDEN_TEST(0);
+  FLAGS_enable_prediction = true;
 }
 
 }  // namespace planning

@@ -67,7 +67,7 @@ function check_machine_arch() {
   fi
 
   #setup vtk folder name for different systems.
-  VTK_VERSION=$(find /usr/include/ -type d  -name "vtk-*" | cut -d '-' -f 2)
+  VTK_VERSION=$(find /usr/include/ -type d  -name "vtk-*" | tail -n1 | cut -d '-' -f 2)
   sed -i "s/VTK_VERSION/${VTK_VERSION}/g" WORKSPACE
 }
 
@@ -100,7 +100,7 @@ function generate_build_targets() {
      BUILD_TARGETS=$(echo $BUILD_TARGETS |tr ' ' '\n' | grep -v "esd")
   fi
   #skip msf for non x86_64 platforms
-  if [ ${MACHINE_ARCH} == "x86_64" ]; then
+  if [ ${MACHINE_ARCH} != "x86_64" ]; then
      BUILD_TARGETS=$(echo $BUILD_TARGETS |tr ' ' '\n' | grep -v "msf")
   fi
 }
@@ -260,6 +260,8 @@ function release() {
 
   # tools
   cp -r modules/tools $MODULES_DIR
+  mkdir -p $MODULES_DIR/data/tools
+  cp -r modules/data/tools/recorder $MODULES_DIR/data/tools/
 
   # scripts
   cp -r scripts ${APOLLO_DIR}
@@ -298,10 +300,9 @@ function release() {
 
   # release info
   META="${APOLLO_DIR}/meta.ini"
-  echo "[Release]" > $META
   echo "git_commit: $(git rev-parse HEAD)" >> $META
-  echo "car_type : LINCOLN.MKZ" >> $META
-  echo "arch : ${MACHINE_ARCH}" >> $META
+  echo "car_type: LINCOLN.MKZ" >> $META
+  echo "arch: ${MACHINE_ARCH}" >> $META
 }
 
 function gen_coverage() {

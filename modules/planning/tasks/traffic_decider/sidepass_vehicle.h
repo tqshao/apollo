@@ -33,7 +33,8 @@ class SidepassVehicle : public TrafficRule {
   explicit SidepassVehicle(const RuleConfig& config);
   virtual ~SidepassVehicle() = default;
 
-  bool ApplyRule(Frame* frame, ReferenceLineInfo* const reference_line_info);
+  bool ApplyRule(Frame* const frame,
+                 ReferenceLineInfo* const reference_line_info);
 
   // a sidepass sequence includes:
   // driving -> wait -> sidepass -> driving
@@ -45,7 +46,7 @@ class SidepassVehicle : public TrafficRule {
   };
 
  private:
-  void UpdateSidepassStatus(const SLBoundary& adc_sl_boundary,
+  bool UpdateSidepassStatus(const SLBoundary& adc_sl_boundary,
                             const common::TrajectoryPoint& adc_planning_point,
                             PathDecision* path_decision);
 
@@ -56,7 +57,7 @@ class SidepassVehicle : public TrafficRule {
    * @brief When the reference line info indicates that there is no lane change,
    * use lane keeping strategy for back side vehicles.
    */
-  void MakeSidepassObstacleDecision(
+  bool MakeSidepassObstacleDecision(
       const SLBoundary& adc_sl_boundary,
       const common::TrajectoryPoint& adc_planning_point,
       PathDecision* path_decision);
@@ -67,6 +68,11 @@ class SidepassVehicle : public TrafficRule {
       "DROPBOX_KEY_SIDEPASS_OBSTACLE_ADC_WAIT_TIME";
   constexpr static char const* const db_key_sidepass_obstacle_id =
       "DROPBOX_KEY_SIDEPASS_OBSTACLE_ID";
+  constexpr static char const* const db_key_sidepass_side =
+      "DROPBOX_KEY_SIDEPASS_SIDE";
+
+  const hdmap::HDMap* hdmap_ = nullptr;
+  const ReferenceLine* reference_line_ = nullptr;
 };
 
 }  // namespace planning

@@ -150,6 +150,11 @@ std::vector<routing::LaneWaypoint> PncMap::FutureRouteWaypoints() const {
 
 void PncMap::UpdateRoutingRange(int adc_index) {
   // track routing range.
+  if (range_start_ > adc_index || range_end_ < adc_index) {
+    range_lane_ids_.clear();
+    range_start_ = std::max(0, adc_index - 1);
+    range_end_ = range_start_;
+  }
   while (range_start_ + 1 < adc_index) {
     range_lane_ids_.erase(route_indices_[range_start_].segment.lane->id().id());
     ++range_start_;
@@ -236,6 +241,10 @@ bool PncMap::UpdateRoutingResponse(const routing::RoutingResponse &routing) {
         route_indices_.emplace_back();
         route_indices_.back().segment =
             ToLaneSegment(passage.segment(lane_index));
+        if (route_indices_.back().segment.lane == nullptr) {
+          AERROR << "Fail to get lane segment from passage.";
+          return false;
+        }
         route_indices_.back().index = {road_index, passage_index, lane_index};
       }
     }

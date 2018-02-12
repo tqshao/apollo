@@ -32,7 +32,7 @@ using apollo::common::PointENU;
 using apollo::common::math::Vec2d;
 
 // Minimum error in lane segmentation.
-const double kSegmentationEpsilon = 0.2;
+// const double kSegmentationEpsilon = 0.2;
 
 // Minimum distance to remove duplicated points.
 const double kDuplicatedPointsEpsilon = 1e-7;
@@ -41,7 +41,7 @@ const double kDuplicatedPointsEpsilon = 1e-7;
 const double kEpsilon = 0.1;
 
 // Maximum x-coordinate of utm
-const double kMaxXCoordinate = 834000;
+// const double kMaxXCoordinate = 834000;
 // Minimum x-coordinate of utm
 const double kMinXCoordinate = 166000;
 // Maximum y-coordinate of utm
@@ -197,6 +197,15 @@ void LaneInfo::Init() {
     AERROR << "lane_[id = " << lane_.id().DebugString() << "has NO type.";
   }
 
+  sampled_left_road_width_.clear();
+  sampled_right_road_width_.clear();
+  for (const auto &sample : lane_.left_road_sample()) {
+    sampled_left_road_width_.emplace_back(sample.s(), sample.width());
+  }
+  for (const auto &sample : lane_.right_road_sample()) {
+    sampled_right_road_width_.emplace_back(sample.s(), sample.width());
+  }
+
   CreateKDTree();
 }
 
@@ -243,6 +252,23 @@ double LaneInfo::GetEffectiveWidth(const double s) const {
   double right_width = 0.0;
   GetWidth(s, &left_width, &right_width);
   return 2 * std::min(left_width, right_width);
+}
+
+void LaneInfo::GetRoadWidth(const double s, double *left_width,
+                            double *right_width) const {
+  if (left_width != nullptr) {
+    *left_width = GetWidthFromSample(sampled_left_road_width_, s);
+  }
+  if (right_width != nullptr) {
+    *right_width = GetWidthFromSample(sampled_right_road_width_, s);
+  }
+}
+
+double LaneInfo::GetRoadWidth(const double s) const {
+  double left_width = 0.0;
+  double right_width = 0.0;
+  GetRoadWidth(s, &left_width, &right_width);
+  return left_width + right_width;
 }
 
 double LaneInfo::GetWidthFromSample(

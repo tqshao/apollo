@@ -1,9 +1,11 @@
 import * as THREE from "three";
-import WS from "store/websocket";
+import {MAP_WS} from "store/websocket";
 
-import { drawSegmentsFromPoints,
-         drawDashedLineFromPoints,
-         drawShapeFromPoints } from "utils/draw";
+import {
+    drawSegmentsFromPoints,
+    drawDashedLineFromPoints,
+    drawShapeFromPoints
+} from "utils/draw";
 
 import stopSignMaterial from "assets/models/stop_sign.mtl";
 import stopSignObject from "assets/models/stop_sign.obj";
@@ -19,6 +21,7 @@ const colorMapping = {
     CORAL: 0xFF7F50,
     RED: 0xFF6666,
     GREEN: 0x006400,
+    BLUE: 0x30A5FF,
     PURE_WHITE: 0xFFFFFF,
     DEFAULT: 0xC0C0C0
 };
@@ -118,7 +121,7 @@ export default class Map {
         });
 
         const rightLaneType = lane.rightBoundary.boundaryType[0].types[0];
-        if(!lane.rightBoundary.virtual || rightLaneType !== "DOTTED_WHITE") {
+        if (!lane.rightBoundary.virtual || rightLaneType !== "DOTTED_WHITE") {
             // TODO: this is a temp. fix for repeated boundary types.
             lane.rightBoundary.curve.segment.forEach((segment, index) => {
                 const points = coordinates.applyOffsetToArray(segment.lineSegment.point);
@@ -129,7 +132,7 @@ export default class Map {
         }
 
         const leftLaneType = lane.leftBoundary.boundaryType[0].types[0];
-        if(!lane.leftBoundary.virtual || leftLaneType !== "DOTTED_WHITE") {
+        if (!lane.leftBoundary.virtual || leftLaneType !== "DOTTED_WHITE") {
             lane.leftBoundary.curve.segment.forEach((segment, index) => {
                 const points = coordinates.applyOffsetToArray(segment.lineSegment.point);
                 const boundary = this.addLaneMesh(leftLaneType, points);
@@ -141,24 +144,55 @@ export default class Map {
         return drewObjects;
     }
 
-    addCrossWalk(crosswalk, coordinates, scene) {
+    addRoad(road, coordinates, scene) {
         const drewObjects = [];
 
-        const border = coordinates.applyOffsetToArray(crosswalk.polygon.point);
+        road.section.forEach(section => {
+            section.boundary.outerPolygon.edge.forEach(edge => {
+                edge.curve.segment.forEach((segment, index) => {
+                    const points = coordinates.applyOffsetToArray(segment.lineSegment.point);
+                    const boundary = this.addLaneMesh("CURB", points);
+                    scene.add(boundary);
+                    drewObjects.push(boundary);
+                });
+            });
+        });
+
+        return drewObjects;
+    }
+
+    addBorder(borderPolygon, color, coordinates, scene) {
+        const drewObjects = [];
+
+        const border = coordinates.applyOffsetToArray(borderPolygon.polygon.point);
         border.push(border[0]);
 
-        const crosswalkMaterial = new THREE.MeshBasicMaterial({
-            color: colorMapping.PURE_WHITE,
+        const mesh = drawSegmentsFromPoints(
+            border, color, 2, 0, true, false, 1.0);
+        scene.add(mesh);
+        drewObjects.push(mesh);
+
+        return drewObjects;
+    }
+
+    addZone(zone, color, coordinates, scene) {
+        const drewObjects = [];
+
+        const border = coordinates.applyOffsetToArray(zone.polygon.point);
+        border.push(border[0]);
+
+        const zoneMaterial = new THREE.MeshBasicMaterial({
+            color: color,
             transparent: true,
             opacity: .15
         });
 
-        const crosswalkShape = drawShapeFromPoints(border, crosswalkMaterial, false, 3, false);
-        scene.add(crosswalkShape);
-        drewObjects.push(crosswalkShape);
+        const zoneShape = drawShapeFromPoints(border, zoneMaterial, false, 3, false);
+        scene.add(zoneShape);
+        drewObjects.push(zoneShape);
 
         const mesh = drawSegmentsFromPoints(
-            border, colorMapping.PURE_WHITE, 2, 0, true, false, 1.0);
+            border, color, 2, 0, true, false, 1.0);
         scene.add(mesh);
         drewObjects.push(mesh);
 
@@ -195,7 +229,7 @@ export default class Map {
         const last2Points = _.takeRight(_.last(lane.centralCurve.segment).lineSegment.point, 2);
         if (last2Points.length === 2) {
             return Math.atan2(last2Points[0].y - last2Points[1].y,
-                              last2Points[0].x - last2Points[1].x);
+                last2Points[0].x - last2Points[1].x);
         }
         return 0;
     }
@@ -205,7 +239,7 @@ export default class Map {
         const len = stopLine.length;
         if (len >= 2) {
             const stopLineDirection = Math.atan2(stopLine[len - 1].y - stopLine[0].y,
-                                                 stopLine[len - 1].x - stopLine[0].x);
+                stopLine[len - 1].x - stopLine[0].x);
             return Math.PI * 1.5 + stopLineDirection;
         }
         return NaN;
@@ -235,7 +269,7 @@ export default class Map {
         }
         if (!heading) {
             console.warn("Unable to get traffic light heading, " +
-                         "use orthogonal direction of StopLine.");
+                "use orthogonal direction of StopLine.");
             heading = this.getHeadingFromStopLine(signal);
         }
 
@@ -293,7 +327,7 @@ export default class Map {
         }
         if (!heading) {
             console.warn("Unable to get stop sign heading, " +
-                         "use orthogonal direction of StopLine.");
+                "use orthogonal direction of StopLine.");
             heading = this.getHeadingFromStopLine(stopSign);
         }
 
@@ -304,7 +338,7 @@ export default class Map {
 
             return { "pos": position, "heading": heading };
         } else {
-            console.error('Error loading traffic light. Unable to determine heading.');
+            console.error('Error loading stop sign. Unable to determine heading.');
             return null;
         }
     }
@@ -370,10 +404,18 @@ export default class Map {
     // side. This also means that the server should maintain a state of
     // (possibly) visible elements, presummably in the global store.
     appendMapData(newData, coordinates, scene) {
-        for (const kind in newData) {
+        // Note: drawing order matter since "stopSign" and "signal" are dependent on "overlap"
+        const kinds = ["overlap", "lane", "junction", "road",
+                       "clearArea", "signal", "stopSign", "crosswalk"];
+        for (const kind of kinds) {
+            if (!newData[kind]) {
+                continue;
+            }
+
             if (!this.data[kind]) {
                 this.data[kind] = [];
             }
+
             for (let i = 0; i < newData[kind].length; ++i) {
                 switch (kind) {
                     case "lane":
@@ -383,10 +425,22 @@ export default class Map {
                         }));
                         this.laneHeading[lane.id.id] = this.getLaneHeading(lane);
                         break;
+                    case "clearArea":
+                        this.data[kind].push(Object.assign(newData[kind][i], {
+                            drewObjects: this.addZone(
+                                newData[kind][i], colorMapping.YELLOW, coordinates, scene)
+                        }));
+                        break;
                     case "crosswalk":
                         this.data[kind].push(Object.assign(newData[kind][i], {
-                            drewObjects: this.addCrossWalk(
-                                newData[kind][i], coordinates, scene)
+                            drewObjects: this.addZone(
+                                newData[kind][i], colorMapping.PURE_WHITE, coordinates, scene)
+                        }));
+                        break;
+                    case "junction":
+                        this.data[kind].push(Object.assign(newData[kind][i], {
+                            drewObjects: this.addBorder(
+                                newData[kind][i], colorMapping.BLUE, coordinates, scene)
                         }));
                         break;
                     case "overlap":
@@ -404,6 +458,12 @@ export default class Map {
                                 newData[kind][i], coordinates, scene)
                         }));
                         break;
+                    case "road":
+                        const road = newData[kind][i];
+                        this.data[kind].push(Object.assign(newData[kind][i], {
+                            drewObjects: this.addRoad(road, coordinates, scene)
+                        }));
+                        break;
                     default:
                         this.data[kind].push(newData[kind][i]);
                         break;
@@ -417,7 +477,7 @@ export default class Map {
             this.hash = hash;
             const diff = this.diffMapElements(elementIds, this.data);
             if (!_.isEmpty(diff) || !this.initialized) {
-                WS.requestMapData(diff);
+                MAP_WS.requestMapData(diff);
                 this.initialized = true;
             }
         }

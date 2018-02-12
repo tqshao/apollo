@@ -9,19 +9,21 @@ export default class Options {
     @observable showPNCMonitor = PARAMETERS.options.defaults.showPNCMonitor;
     @observable showRouteEditingBar = PARAMETERS.options.defaults.showRouteEditingBar;
     @observable showPOI = PARAMETERS.options.defaults.showPOI;
+    @observable showDataRecorder = PARAMETERS.options.defaults.showDataRecorder;
     @observable showVideo = PARAMETERS.options.defaults.showVideo;
     @observable showTasks =
         OFFLINE_PLAYBACK ? false : PARAMETERS.options.defaults.showTasks;
 
     mutuallyExclusiveOptions = ['showTasks', 'showModuleController',
-        'showMenu', 'showRouteEditingBar'];
+        'showMenu', 'showRouteEditingBar', 'showDataRecorder'];
 
     // Layer Menu options
     @observable showDecisionMain = PARAMETERS.options.defaults.showDecisionMain;
     @observable showDecisionObstacle = PARAMETERS.options.defaults.showDecisionObstacle;
     @observable showPlanning = PARAMETERS.options.defaults.showPlanning;
+    @observable showPlanningCar = PARAMETERS.options.defaults.showPlanningCar;
     @observable showPlanningReference = PARAMETERS.options.defaults.showPlanningReference;
-    @observable showPlaningDpOptimizer = PARAMETERS.options.defaults.showPlaningDpOptimizer;
+    @observable showPlanningDpOptimizer = PARAMETERS.options.defaults.showPlanningDpOptimizer;
     @observable showPlanningQpOptimizer = PARAMETERS.options.defaults.showPlanningQpOptimizer;
     @observable showRouting = PARAMETERS.options.defaults.showRouting;
     @observable showPredictionMajor = PARAMETERS.options.defaults.showPredictionMajor;
@@ -43,11 +45,18 @@ export default class Options {
         PARAMETERS.options.defaults.showObstaclesHeading;
     @observable showObstaclesId =
         PARAMETERS.options.defaults.showObstaclesId;
-    @observable cameraAngle = PARAMETERS.options.defaults.cameraAngle;
+    @observable showPositionGps = PARAMETERS.options.defaults.showPositionGps;
+    @observable showPositionLocalization = PARAMETERS.options.defaults.showPositionLocalization;
 
-    @observable hideOptions = {
+    // Others
+    @observable cameraAngle = PARAMETERS.options.defaults.cameraAngle;
+    @observable simControlEnabled = false;
+    @observable tasksPanelLocked = false;
+
+    @observable hideOptionToggle = {
+        'planningCar': true,
         'planningQpOptimizer': true,
-        'planingDpOptimizer': true,
+        'planningDpOptimizer': true,
         'planningReference': true,
     };
 
@@ -56,7 +65,8 @@ export default class Options {
         return this.showTasks ||
                this.showModuleController ||
                this.showMenu ||
-               this.showPOI;
+               this.showPOI ||
+               this.showDataRecorder;
     }
 
     @computed get showGeo() {
@@ -66,7 +76,7 @@ export default class Options {
                this.cameraAngle === 'Monitor';
     }
 
-    @action toggleSideBar(option) {
+    @action toggle(option) {
         this[option] = !this[option];
 
         // Disable other mutually exclusive options
@@ -79,14 +89,10 @@ export default class Options {
         }
 
         if (option === "showPNCMonitor") {
-            this.hideOptions['planningQpOptimizer'] = !this[option];
-            this.hideOptions['planingDpOptimizer'] = !this[option];
-            this.hideOptions['planningReference'] = !this[option];
+            Object.keys(this.hideOptionToggle).map((toggle) => {
+                this.hideOptionToggle[toggle] = !this[option];
+            });
         }
-    }
-
-    @action toggle(option) {
-        this[option] = !this[option];
     }
 
     @action selectCamera(option) {

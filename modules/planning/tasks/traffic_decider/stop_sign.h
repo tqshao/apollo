@@ -15,7 +15,7 @@
  *****************************************************************************/
 
 /**
- * @file stop_sign.h
+ * @file
  **/
 
 #ifndef MODULES_PLANNING_TASKS_TRAFFIC_DECIDER_STOP_SIGN_H_
@@ -45,11 +45,12 @@ class StopSign : public TrafficRule {
     UNKNOWN = 0,
     TO_STOP = 1,
     STOPPING = 2,
-    STOP_DONE = 3,
+    CREEPING = 3,
+    STOP_DONE = 4,
   };
 
  private:
-  void MakeDecisions(Frame* frame,
+  void MakeDecisions(Frame* const frame,
                      ReferenceLineInfo* const reference_line_info);
   bool FindNextStopSign(ReferenceLineInfo* const reference_line_info);
   int GetAssociatedLanes(const hdmap::StopSignInfo& stop_sign_info);
@@ -62,16 +63,16 @@ class StopSign : public TrafficRule {
   int AddWatchVehicle(const PathObstacle& path_obstacle,
                       StopSignLaneVehicles* watch_vehicles);
   int RemoveWatchVehicle(const PathObstacle& path_obstacle,
+                         const std::vector<std::string>& watch_vehicle_ids,
                          StopSignLaneVehicles* watch_vehicles);
-  int ClearWatchVehicle(
-      ReferenceLineInfo* const reference_line_info,
-      StopSignLaneVehicles* watch_vehicles);
-  double GetStopDeceleration(ReferenceLineInfo* const reference_line_info,
-                             const hdmap::PathOverlap* stop_sign_overlap);
-  bool BuildStopDecision(Frame* frame,
+  int ClearWatchVehicle(ReferenceLineInfo* const reference_line_info,
+                        StopSignLaneVehicles* watch_vehicles);
+  bool BuildStopDecision(Frame* const frame,
                          ReferenceLineInfo* const reference_line_info,
-                         const hdmap::PathOverlap* stop_sign_overlap);
+                         hdmap::PathOverlap* const overlap,
+                         const double stop_buffer);
   void ClearDropbox(const std::string& stop_sign_id);
+  void ClearDropboxWatchvehicles();
 
  private:
   constexpr static char const* const db_key_stop_sign_stop_status_prefix_ =

@@ -33,6 +33,7 @@ em_planner_config {
         path_out_lane_cost: 1e8
         path_end_l_cost: 1.0e4
         sidepass_distance: 2.8
+        navigator_sample_num_each_level: 3
     }
     dp_st_speed_config {
         total_path_length: 150
@@ -53,6 +54,7 @@ em_planner_config {
         default_speed_cost: 1.0e3
         exceed_speed_penalty: 10.0
         low_speed_penalty: 10.0
+        keep_clear_low_speed_penalty: 10.0
 
         accel_penalty: 1.0
         decel_penalty: 1.0
@@ -204,4 +206,7 @@ rule_config : {
 }
 rule_config : {
     rule_id: SIDEPASS_VEHICLE
+}
+rule_config : {
+    rule_id: KEEP_CLEAR
 }
