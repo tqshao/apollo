@@ -35,8 +35,9 @@
 #ifndef MODULES_PERCEPTION_OBSTACLE_COMMON_HUNGARIAN_BIGRAPH_MATCHER_H_
 #define MODULES_PERCEPTION_OBSTACLE_COMMON_HUNGARIAN_BIGRAPH_MATCHER_H_
 
-#include <algorithm>
 #include <cstdio>
+
+#include <algorithm>
 #include <limits>
 #include <vector>
 
@@ -237,10 +238,6 @@ class HungarianOptimizer {
   // Representation of a path_ through the matrix - used in step 5.
   std::vector<int> preimage_;  // i.e. the agents
   std::vector<int> image_;     // i.e. the tasks
-
-  // The locations of a zero found in step 4.
-  int zero_col_;
-  int zero_row_;
 
   // The width_ and height_ of the initial (non-expanded) cost matrix.
   int width_;

@@ -26,13 +26,13 @@
 #include "modules/dreamview/backend/common/dreamview_gflags.h"
 
 using apollo::canbus::Chassis;
+using apollo::common::TrajectoryPoint;
 using apollo::common::monitor::MonitorMessage;
 using apollo::localization::LocalizationEstimate;
-using apollo::planning::ADCTrajectory;
-using apollo::common::TrajectoryPoint;
-using apollo::planning::DecisionResult;
 using apollo::perception::PerceptionObstacle;
 using apollo::perception::PerceptionObstacles;
+using apollo::planning::ADCTrajectory;
+using apollo::planning::DecisionResult;
 using apollo::prediction::PredictionObstacle;
 using apollo::prediction::PredictionObstacles;
 
@@ -75,6 +75,7 @@ class SimulationWorldServiceTest : public ::testing::Test {
   SimulationWorldServiceTest() {
     FLAGS_map_dir = "modules/dreamview/backend/testdata";
     FLAGS_base_map_filename = "garage.bin";
+    FLAGS_sim_world_with_routing_path = true;
     map_service_.reset(new MapService(false));
   }
 
@@ -167,7 +168,7 @@ TEST_F(SimulationWorldServiceTest, UpdateChassisInfo) {
   EXPECT_DOUBLE_EQ(25.0, car.speed());
   EXPECT_DOUBLE_EQ(50.0, car.throttle_percentage());
   EXPECT_DOUBLE_EQ(10.0, car.brake_percentage());
-  EXPECT_DOUBLE_EQ(25.0, car.steering_angle());
+  EXPECT_DOUBLE_EQ(25.0, car.steering_percentage());
   EXPECT_EQ("RIGHT", car.current_signal());
 }
 

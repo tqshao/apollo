@@ -30,20 +30,20 @@
 namespace apollo {
 namespace hdmap {
 
-using common::math::LineSegment2d;
-using common::math::Polygon2d;
-using common::math::Vec2d;
 using common::math::Box2d;
 using common::math::kMathEpsilon;
+using common::math::LineSegment2d;
+using common::math::Polygon2d;
 using common::math::Sqr;
+using common::math::Vec2d;
 using std::placeholders::_1;
 
 namespace {
 
 const double kSampleDistance = 0.25;
 
-bool find_lane_segment(const MapPathPoint& p1, const MapPathPoint& p2,
-                       LaneSegment* const lane_segment) {
+bool FindLaneSegment(const MapPathPoint& p1, const MapPathPoint& p2,
+                     LaneSegment* const lane_segment) {
   for (const auto& wp1 : p1.lane_waypoints()) {
     for (const auto& wp2 : p2.lane_waypoints()) {
       if (wp1.lane->id().id() == wp2.lane->id().id() && wp1.s < wp2.s) {
@@ -124,6 +124,25 @@ LaneWaypoint LeftNeighborWaypoint(const LaneWaypoint& waypoint) {
     }
   }
   return neighbor;
+}
+
+void LaneSegment::Join(std::vector<LaneSegment>* segments) {
+  std::size_t k = 0;
+  std::size_t i = 0;
+  while (i < segments->size()) {
+    std::size_t j = i;
+    while (j + 1 < segments->size() &&
+           segments->at(i).lane->id().id() ==
+               segments->at(j + 1).lane->id().id()) {
+      ++j;
+    }
+    segments->at(k).lane = segments->at(i).lane;
+    segments->at(k).start_s = segments->at(i).start_s;
+    segments->at(k).end_s = segments->at(j).end_s;
+    i = j + 1;
+    ++k;
+  }
+  segments->resize(k);
 }
 
 LaneWaypoint RightNeighborWaypoint(const LaneWaypoint& waypoint) {
@@ -262,22 +281,21 @@ void Path::InitPoints() {
 
 void Path::InitLaneSegments() {
   if (lane_segments_.empty()) {
-    lane_segments_.reserve(num_points_);
     for (int i = 0; i + 1 < num_points_; ++i) {
       LaneSegment lane_segment;
-      if (find_lane_segment(path_points_[i], path_points_[i + 1],
-                            &lane_segment)) {
+      if (FindLaneSegment(path_points_[i], path_points_[i + 1],
+                          &lane_segment)) {
         lane_segments_.push_back(lane_segment);
       }
     }
   }
+  LaneSegment::Join(&lane_segments_);
 
   lane_segments_to_next_point_.clear();
   lane_segments_to_next_point_.reserve(num_points_);
   for (int i = 0; i + 1 < num_points_; ++i) {
     LaneSegment lane_segment;
-    if (find_lane_segment(path_points_[i], path_points_[i + 1],
-                          &lane_segment)) {
+    if (FindLaneSegment(path_points_[i], path_points_[i + 1], &lane_segment)) {
       lane_segments_to_next_point_.push_back(lane_segment);
     } else {
       lane_segments_to_next_point_.push_back(LaneSegment());
@@ -330,7 +348,7 @@ void Path::InitPointIndex() {
   CHECK_EQ(last_point_index_.size(), num_sample_points_);
 }
 
-void Path::GetAllOverlaps(GetOverlapFromLaneFunc get_overlaps_from_lane,
+void Path::GetAllOverlaps(GetOverlapFromLaneFunc GetOverlaps_from_lane,
                           std::vector<PathOverlap>* const overlaps) const {
   if (overlaps == nullptr) {
     return;
@@ -343,9 +361,9 @@ void Path::GetAllOverlaps(GetOverlapFromLaneFunc get_overlaps_from_lane,
     if (lane_segment.lane == nullptr) {
       continue;
     }
-    for (const auto& overlap : get_overlaps_from_lane(*(lane_segment.lane))) {
+    for (const auto& overlap : GetOverlaps_from_lane(*(lane_segment.lane))) {
       const auto& overlap_info =
-          overlap->get_object_overlap_info(lane_segment.lane->id());
+          overlap->GetObjectOverlapInfo(lane_segment.lane->id());
       if (overlap_info == nullptr) {
         continue;
       }
@@ -388,6 +406,17 @@ void Path::GetAllOverlaps(GetOverlapFromLaneFunc get_overlaps_from_lane,
             [](const PathOverlap& overlap1, const PathOverlap& overlap2) {
               return overlap1.start_s < overlap2.start_s;
             });
+}
+
+const PathOverlap* Path::NextLaneOverlap(double s) const {
+  auto next = std::upper_bound(
+      lane_overlaps_.begin(), lane_overlaps_.end(), s,
+      [](double s, const PathOverlap& o) { return s < o.start_s; });
+  if (next == lane_overlaps_.end()) {
+    return nullptr;
+  } else {
+    return &(*next);
+  }
 }
 
 void Path::InitOverlaps() {

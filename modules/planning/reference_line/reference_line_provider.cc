@@ -16,7 +16,6 @@
 
 /**
  * @file
- *
  * @brief Implementation of the class ReferenceLineProvider.
  */
 
@@ -27,6 +26,7 @@
 
 #include "modules/common/configs/vehicle_config_helper.h"
 #include "modules/common/time/time.h"
+#include "modules/common/util/file.h"
 #include "modules/map/pnc_map/path.h"
 #include "modules/planning/common/planning_gflags.h"
 #include "modules/planning/reference_line/reference_line_provider.h"
@@ -46,7 +46,10 @@ using apollo::common::time::Clock;
 using apollo::hdmap::LaneWaypoint;
 using apollo::hdmap::RouteSegments;
 
-ReferenceLineProvider::ReferenceLineProvider() {}
+apollo::common::util::Factory<
+    PlanningConfig::ReferenceLineSmootherType, ReferenceLineSmoother,
+    ReferenceLineSmoother *(*)(const ReferenceLineSmootherConfig &config)>
+    ReferenceLineProvider::s_smoother_factory_;
 
 ReferenceLineProvider::~ReferenceLineProvider() {
   if (thread_ && thread_->joinable()) {
@@ -54,35 +57,39 @@ ReferenceLineProvider::~ReferenceLineProvider() {
   }
 }
 
-void ReferenceLineProvider::Init(
-    const hdmap::HDMap *base_map,
-    const QpSplineReferenceLineSmootherConfig &smoother_config) {
-  pnc_map_.reset(new hdmap::PncMap(base_map));
-  if (FLAGS_enable_spiral_reference_line) {
-    smoother_.reset(
-        new SpiralReferenceLineSmoother(FLAGS_spiral_smoother_max_deviation));
-  } else {
-    smoother_config_ = smoother_config;
-    std::vector<double> init_t_knots;
-    spline_solver_.reset(new Spline2dSolver(init_t_knots, 1));
-    smoother_.reset(new QpSplineReferenceLineSmoother(smoother_config_,
-                                                      spline_solver_.get()));
-  }
-  is_initialized_ = true;
+void ReferenceLineProvider::RegisterSmoothers() {
+  s_smoother_factory_.Register(
+      PlanningConfig::SPIRAL_SMOOTHER,
+      [](const ReferenceLineSmootherConfig &config) -> ReferenceLineSmoother * {
+        return new SpiralReferenceLineSmoother(config);
+      });
+  s_smoother_factory_.Register(
+      PlanningConfig::QP_SPLINE_SMOOTHER,
+      [](const ReferenceLineSmootherConfig &config) -> ReferenceLineSmoother * {
+        return new QpSplineReferenceLineSmoother(config);
+      });
 }
+
+ReferenceLineProvider::ReferenceLineProvider(
+    const hdmap::HDMap *base_map,
+    PlanningConfig::ReferenceLineSmootherType smoother_type) {
+  pnc_map_.reset(new hdmap::PncMap(base_map));
+  if (s_smoother_factory_.Empty()) {
+    RegisterSmoothers();
+  }
+  CHECK(common::util::GetProtoFromFile(FLAGS_smoother_config_filename,
+                                       &smoother_config_))
+      << "Failed to load smoother config file "
+      << FLAGS_smoother_config_filename;
+  smoother_ = s_smoother_factory_.CreateObject(smoother_type, smoother_config_);
+  is_initialized_ = true;
+}  // namespace planning
 
 bool ReferenceLineProvider::UpdateRoutingResponse(
     const routing::RoutingResponse &routing) {
-  std::unique_lock<std::mutex> routing_lock(routing_mutex_, std::defer_lock);
-  std::unique_lock<std::mutex> reference_line_lock(reference_lines_mutex_,
-                                                   std::defer_lock);
-  std::lock(routing_lock, reference_line_lock);
-  if (hdmap::PncMap::IsNewRouting(routing_, routing)) {
-    routing_ = routing;
-    has_routing_ = true;
-    reference_lines_.clear();
-    route_segments_.clear();
-  }
+  std::lock_guard<std::mutex> routing_lock(routing_mutex_);
+  routing_ = routing;
+  has_routing_ = true;
   return true;
 }
 
@@ -274,9 +281,11 @@ bool ReferenceLineProvider::CreateReferenceLine(
     std::lock_guard<std::mutex> lock(routing_mutex_);
     routing = routing_;
   }
+  bool is_new_routing = false;
   {
     // Update routing in pnc_map
     if (pnc_map_->IsNewRouting(routing)) {
+      is_new_routing = true;
       if (!pnc_map_->UpdateRoutingResponse(routing)) {
         AERROR << "Failed to update routing in pnc map";
         return false;
@@ -291,7 +300,7 @@ bool ReferenceLineProvider::CreateReferenceLine(
     AERROR << "Failed to create reference line from routing";
     return false;
   }
-  if (!FLAGS_enable_reference_line_stitching) {
+  if (is_new_routing || !FLAGS_enable_reference_line_stitching) {
     for (auto iter = segments->begin(); iter != segments->end();) {
       reference_lines->emplace_back();
       if (!SmoothRouteSegment(*iter, &reference_lines->back())) {
@@ -451,15 +460,38 @@ AnchorPoint ReferenceLineProvider::GetAnchorPoint(
   const auto adc_half_width =
       VehicleConfigHelper::GetConfig().vehicle_param().width() / 2.0;
   auto ref_point = reference_line.GetReferencePoint(s);
+  const Vec2d left_vec =
+      Vec2d::CreateUnitVec2d(ref_point.heading() + M_PI / 2.0);
+  const Vec2d right_vec =
+      Vec2d::CreateUnitVec2d(ref_point.heading() - M_PI / 2.0);
+
+  Vec2d all_shifts(0.0, 0.0);
+
+  // shift to center
   double left_width = 0.0;
   double right_width = 0.0;
   reference_line.GetLaneWidth(s, &left_width, &right_width);
-  auto shift = (left_width - right_width) / 2.0 *
-               Vec2d::CreateUnitVec2d(ref_point.heading() + M_PI / 2.0);
-  ref_point += shift;
+  auto shift_to_center = (left_width - right_width) / 2.0 * left_vec;
+  all_shifts += shift_to_center;
+
+  // avoid curb boundary
+  if (!ref_point.lane_waypoints().empty()) {
+    const LaneWaypoint &waypoint = ref_point.lane_waypoints()[0];
+    auto left_type = hdmap::LeftBoundaryType(waypoint);
+    if (left_type == hdmap::LaneBoundaryType::CURB) {
+      all_shifts += smoother_config_.curb_shift() * right_vec;
+    }
+    auto right_type = hdmap::RightBoundaryType(waypoint);
+    if (right_type == hdmap::LaneBoundaryType::CURB) {
+      all_shifts += smoother_config_.curb_shift() * left_vec;
+    }
+  }
+
+  ref_point += all_shifts;
   anchor.path_point = ref_point.ToPathPoint(s);
   double effective_width = (left_width + right_width) / 2.0 - adc_half_width -
-                           FLAGS_reference_line_lateral_buffer;
+                           FLAGS_reference_line_lateral_buffer -
+                           all_shifts.Length();
   anchor.lateral_bound =
       std::max(smoother_config_.lateral_boundary_bound(), effective_width);
   return anchor;

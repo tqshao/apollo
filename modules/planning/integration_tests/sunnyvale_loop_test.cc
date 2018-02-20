@@ -41,6 +41,9 @@ class SunnyvaleLoopTest : public PlanningTestBase {
     FLAGS_test_base_map_filename = "base_map_test.bin";
     FLAGS_test_data_dir = "modules/planning/testdata/sunnyvale_loop_test";
     FLAGS_planning_upper_speed_limit = 12.5;
+    FLAGS_use_multi_thread_to_add_obstacles = false;
+    FLAGS_enable_crosswalk = false;
+    FLAGS_enable_stop_sign = false;
   }
 };
 
@@ -55,7 +58,7 @@ TEST_F(SunnyvaleLoopTest, cruise) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -69,7 +72,7 @@ TEST_F(SunnyvaleLoopTest, stop) {
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -83,7 +86,7 @@ TEST_F(SunnyvaleLoopTest, follow_01) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -97,7 +100,7 @@ TEST_F(SunnyvaleLoopTest, nudge) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -111,7 +114,7 @@ TEST_F(SunnyvaleLoopTest, follow_02) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -125,7 +128,7 @@ TEST_F(SunnyvaleLoopTest, follow_03) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -139,7 +142,7 @@ TEST_F(SunnyvaleLoopTest, slowdown_01) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -154,7 +157,7 @@ TEST_F(SunnyvaleLoopTest, rightturn_01) {
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   FLAGS_enable_traffic_light = false;
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -170,7 +173,7 @@ TEST_F(SunnyvaleLoopTest, rightturn_with_red_light) {
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   FLAGS_test_traffic_light_file = seq_num + "_traffic_light.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -184,7 +187,7 @@ TEST_F(SunnyvaleLoopTest, change_lane) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -197,7 +200,7 @@ TEST_F(SunnyvaleLoopTest, mission_complete) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_chassis_file = seq_num + "_chassis.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -211,7 +214,7 @@ TEST_F(SunnyvaleLoopTest, avoid_change_left) {
   FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
   FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -225,7 +228,7 @@ TEST_F(SunnyvaleLoopTest, qp_path_failure) {
   FLAGS_test_localization_file = seq_num + "_localization.pb.txt";
   FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 /*
@@ -251,7 +254,7 @@ TEST_F(SunnyvaleLoopTest, change_lane_failback) {
   FLAGS_test_routing_response_file = seq_num + "_routing.pb.txt";
   FLAGS_test_prediction_file = seq_num + "_prediction.pb.txt";
   PlanningTestBase::SetUp();
-  RUN_GOLDEN_TEST;
+  RUN_GOLDEN_TEST(0);
 }
 
 }  // namespace planning

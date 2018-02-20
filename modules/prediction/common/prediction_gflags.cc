@@ -27,16 +27,20 @@ DEFINE_string(prediction_conf_file,
 DEFINE_string(prediction_adapter_config_filename,
               "modules/prediction/conf/adapter.conf",
               "Default conf file for prediction");
+DEFINE_string(prediction_data_file_prefix, "data/prediction/feature",
+              "Prefix of files to store feature data");
 DEFINE_bool(prediction_test_mode, false, "Set prediction to test mode");
 DEFINE_double(
     prediction_test_duration, -1.0,
     "The runtime duration in test mode (in seconds). Negative value will not "
     "restrict the runtime duration.");
 
+DEFINE_bool(prediction_offline_mode, false, "Prediction offline mode");
+
 DEFINE_double(prediction_duration, 5.0, "Prediction duration (in seconds)");
 DEFINE_double(prediction_period, 0.1, "Prediction period (in seconds");
 DEFINE_double(double_precision, 1e-6, "precision of double");
-DEFINE_double(min_prediction_length, 50.0,
+DEFINE_double(min_prediction_length, 20.0,
               "Minimal length of prediction trajectory");
 
 // Bag replay timestamp gap
@@ -67,6 +71,8 @@ DEFINE_double(still_pedestrian_speed_threshold, 0.5,
               "Speed threshold for still pedestrians");
 DEFINE_double(still_obstacle_position_std, 1.0,
               "Position standard deviation for still obstacles");
+DEFINE_double(still_pedestrian_position_std, 0.5,
+              "Position standard deviation for still obstacles");
 DEFINE_double(max_history_time, 7.0, "Obstacles' maximal historical time.");
 DEFINE_double(target_lane_gap, 2.0, "gap between two lane points.");
 DEFINE_int32(max_num_current_lane, 1, "Max number to search current lanes");
@@ -92,8 +98,7 @@ DEFINE_double(valid_position_diff_threshold, 0.5,
               "threshold of valid position difference");
 DEFINE_double(valid_position_diff_rate_threshold, 0.075,
               "threshold of valid position difference rate");
-DEFINE_double(split_rate, 0.5,
-              "obstacle split rate for adjusting velocity");
+DEFINE_double(split_rate, 0.5, "obstacle split rate for adjusting velocity");
 DEFINE_double(rnn_min_lane_relatice_s, 5.0,
               "Minimal relative s for RNN model.");
 DEFINE_bool(enable_adjust_velocity_heading, false,

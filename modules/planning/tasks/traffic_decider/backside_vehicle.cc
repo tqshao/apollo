@@ -40,7 +40,7 @@ void BacksideVehicle::MakeLaneKeepingObstacleDecision(
       continue;
     }
 
-    if (path_obstacle->st_boundary().IsEmpty()) {
+    if (path_obstacle->reference_line_st_boundary().IsEmpty()) {
       path_decision->AddLongitudinalDecision("backside_vehicle/no-st-region",
                                              path_obstacle->Id(), ignore);
       path_decision->AddLateralDecision("backside_vehicle/no-st-region",
@@ -48,7 +48,7 @@ void BacksideVehicle::MakeLaneKeepingObstacleDecision(
       continue;
     }
     // Ignore the car comes from back of ADC
-    if (path_obstacle->st_boundary().min_s() < -adc_length_s) {
+    if (path_obstacle->reference_line_st_boundary().min_s() < -adc_length_s) {
       path_decision->AddLongitudinalDecision("backside_vehicle/st-min-s < adc",
                                              path_obstacle->Id(), ignore);
       path_decision->AddLateralDecision("backside_vehicle/st-min-s < adc",
@@ -73,7 +73,7 @@ void BacksideVehicle::MakeLaneKeepingObstacleDecision(
   }
 }
 
-bool BacksideVehicle::ApplyRule(Frame*,
+bool BacksideVehicle::ApplyRule(Frame* const,
                                 ReferenceLineInfo* const reference_line_info) {
   auto* path_decision = reference_line_info->path_decision();
   const auto& adc_sl_boundary = reference_line_info->AdcSlBoundary();

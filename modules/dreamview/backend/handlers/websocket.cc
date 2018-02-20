@@ -26,8 +26,8 @@ limitations under the License.
 namespace apollo {
 namespace dreamview {
 
-using apollo::common::util::StrCat;
 using apollo::common::util::ContainsKey;
+using apollo::common::util::StrCat;
 
 void WebSocketHandler::handleReadyState(CivetServer *server, Connection *conn) {
   {
@@ -82,8 +82,13 @@ bool WebSocketHandler::BroadcastData(const std::string &data, bool skippable) {
   return all_success;
 }
 
+bool WebSocketHandler::SendBinaryData(Connection *conn, const std::string &data,
+                                      bool skippable) {
+  return SendData(conn, data, skippable, WEBSOCKET_OPCODE_BINARY);
+}
+
 bool WebSocketHandler::SendData(Connection *conn, const std::string &data,
-                                bool skippable) {
+                                bool skippable, int op_code) {
   std::shared_ptr<std::mutex> connection_lock;
   {
     std::unique_lock<std::mutex> lock(mutex_);
@@ -111,13 +116,13 @@ bool WebSocketHandler::SendData(Connection *conn, const std::string &data,
       }
     }
   }
+
   // Note that while we are holding the connection lock, the connection won't be
   // closed and removed.
   int ret;
   PERF_BLOCK(StrCat("Writing ", data.size(), " bytes via websocket took"),
              0.1) {
-    ret = mg_websocket_write(conn, WEBSOCKET_OPCODE_TEXT, data.c_str(),
-                             data.size());
+    ret = mg_websocket_write(conn, op_code, data.c_str(), data.size());
   }
   connection_lock->unlock();
 
@@ -146,6 +151,19 @@ bool WebSocketHandler::handleData(CivetServer *server, Connection *conn,
     return false;
   }
 
+  switch (bits &= 0x7f) {
+    case WEBSOCKET_OPCODE_TEXT:
+      return handleJsonData(conn, data, data_len);
+    case WEBSOCKET_OPCODE_BINARY:
+      return handleBinaryData(conn, data, data_len);
+    default:
+      AERROR << "Unknown WebSocket bits flag: " << bits;
+      return true;
+  }
+}
+
+bool WebSocketHandler::handleJsonData(Connection *conn, char *data,
+                                      size_t data_len) {
   Json json;
   try {
     json = Json::parse(data, data + data_len);
@@ -166,6 +184,14 @@ bool WebSocketHandler::handleData(CivetServer *server, Connection *conn,
     return true;
   }
   message_handlers_[type](json, conn);
+  return true;
+}
+
+bool WebSocketHandler::handleBinaryData(Connection *conn, char *data,
+                                        size_t data_len) {
+  auto type = "Binary";
+  std::string data_string(data, data_len);
+  message_handlers_[type](data_string, conn);
   return true;
 }
 

@@ -52,9 +52,8 @@ double Damp(const double x, const double sigma) {
 
 Obstacle::Obstacle() {
   double heading_filter_param = FLAGS_heading_filter_param;
-  if (FLAGS_heading_filter_param < 0.0 || FLAGS_heading_filter_param > 1.0) {
-    heading_filter_param = 0.98;
-  }
+  CHECK_LT(heading_filter_param, 1.0);
+  CHECK_GT(heading_filter_param, 0.0);
   heading_filter_ = common::DigitalFilter{{1.0, 1.0 - heading_filter_param},
                                           {heading_filter_param}};
 }
@@ -130,7 +129,8 @@ bool Obstacle::IsNearJunction() {
 }
 
 void Obstacle::Insert(const PerceptionObstacle& perception_obstacle,
-                      const double timestamp) {
+                      const double timestamp,
+                      ObstacleClusters* const obstacle_clusters) {
   if (feature_history_.size() > 0 &&
       timestamp <= feature_history_.front().timestamp()) {
     AERROR << "Obstacle [" << id_ << "] received an older frame ["
@@ -144,7 +144,7 @@ void Obstacle::Insert(const PerceptionObstacle& perception_obstacle,
   if (SetId(perception_obstacle, &feature) == ErrorCode::PREDICTION_ERROR) {
     return;
   }
-  if (SetType(perception_obstacle) == ErrorCode::PREDICTION_ERROR) {
+  if (SetType(perception_obstacle, &feature) == ErrorCode::PREDICTION_ERROR) {
     return;
   }
 
@@ -171,7 +171,7 @@ void Obstacle::Insert(const PerceptionObstacle& perception_obstacle,
   // Set obstacle lane features
   SetCurrentLanes(&feature);
   SetNearbyLanes(&feature);
-  SetLaneGraphFeature(&feature);
+  SetLaneGraphFeature(&feature, obstacle_clusters);
   UpdateKFLaneTrackers(&feature);
 
   // Insert obstacle feature to history
@@ -289,10 +289,12 @@ ErrorCode Obstacle::SetId(const PerceptionObstacle& perception_obstacle,
   return ErrorCode::OK;
 }
 
-ErrorCode Obstacle::SetType(const PerceptionObstacle& perception_obstacle) {
+ErrorCode Obstacle::SetType(const PerceptionObstacle& perception_obstacle,
+                            Feature* feature) {
   if (perception_obstacle.has_type()) {
     type_ = perception_obstacle.type();
     ADEBUG << "Obstacle [" << id_ << "] has type [" << type_ << "].";
+    feature->set_type(type_);
   } else {
     AERROR << "Obstacle [" << id_ << "] has no type.";
     return ErrorCode::PREDICTION_ERROR;
@@ -383,12 +385,13 @@ void Obstacle::SetVelocity(const PerceptionObstacle& perception_obstacle,
       double angle_diff = ::apollo::common::math::NormalizeAngle(
           shift_heading - velocity_heading);
       if (std::fabs(angle_diff) > FLAGS_max_lane_angle_diff) {
+        ADEBUG << "Shift velocity heading to be " << shift_heading;
         velocity_heading = shift_heading;
       }
     }
     double filtered_heading = heading_filter_.Filter(velocity_heading);
     if (type_ == PerceptionObstacle::BICYCLE ||
-        type_ == PerceptionObstacle::PEDESTRIAN) {
+      type_ == PerceptionObstacle::PEDESTRIAN) {
       velocity_heading = filtered_heading;
     }
     velocity_x = speed * std::cos(velocity_heading);
@@ -941,35 +944,32 @@ void Obstacle::SetNearbyLanes(Feature* feature) {
   }
 }
 
-void Obstacle::SetLaneGraphFeature(Feature* feature) {
+void Obstacle::SetLaneGraphFeature(Feature* feature,
+                                   ObstacleClusters* const obstacle_clusters) {
   double speed = feature->speed();
   double acc = feature->acc();
   double road_graph_distance =
       speed * FLAGS_prediction_duration +
       0.5 * acc * FLAGS_prediction_duration * FLAGS_prediction_duration +
       FLAGS_min_prediction_length;
+
+  int seq_id = 0;
   int curr_lane_count = 0;
   for (auto& lane : feature->lane().current_lane_feature()) {
     std::shared_ptr<const LaneInfo> lane_info =
         PredictionMap::LaneById(lane.lane_id());
-    RoadGraph road_graph(lane.lane_s(), road_graph_distance, lane_info);
-    LaneGraph lane_graph;
-    road_graph.BuildLaneGraph(&lane_graph);
+    const LaneGraph& lane_graph = obstacle_clusters->GetLaneGraph(
+        lane.lane_s(), road_graph_distance, lane_info);
     if (lane_graph.lane_sequence_size() > 0) {
       ++curr_lane_count;
     }
-    int seq_id =
-        feature->mutable_lane()->mutable_lane_graph()->lane_sequence_size();
     for (const auto& lane_seq : lane_graph.lane_sequence()) {
+      LaneSequence seq(lane_seq);
+      seq.set_lane_sequence_id(seq_id++);
       feature->mutable_lane()
           ->mutable_lane_graph()
           ->add_lane_sequence()
-          ->CopyFrom(lane_seq);
-      feature->mutable_lane()
-          ->mutable_lane_graph()
-          ->mutable_lane_sequence(seq_id)
-          ->set_lane_sequence_id(seq_id);
-      ++seq_id;
+          ->CopyFrom(seq);
       ADEBUG << "Obstacle [" << id_ << "] set a lane sequence ["
              << lane_seq.ShortDebugString() << "].";
     }
@@ -982,23 +982,18 @@ void Obstacle::SetLaneGraphFeature(Feature* feature) {
   for (auto& lane : feature->lane().nearby_lane_feature()) {
     std::shared_ptr<const LaneInfo> lane_info =
         PredictionMap::LaneById(lane.lane_id());
-    RoadGraph road_graph(lane.lane_s(), road_graph_distance, lane_info);
-    LaneGraph lane_graph;
-    road_graph.BuildLaneGraph(&lane_graph);
+    const LaneGraph& lane_graph = obstacle_clusters->GetLaneGraph(
+        lane.lane_s(), road_graph_distance, lane_info);
     if (lane_graph.lane_sequence_size() > 0) {
       ++nearby_lane_count;
     }
-    int seq_id =
-        feature->mutable_lane()->mutable_lane_graph()->lane_sequence_size();
     for (const auto& lane_seq : lane_graph.lane_sequence()) {
+      LaneSequence seq(lane_seq);
+      seq.set_lane_sequence_id(seq_id++);
       feature->mutable_lane()
           ->mutable_lane_graph()
           ->add_lane_sequence()
-          ->CopyFrom(lane_seq);
-      feature->mutable_lane()
-          ->mutable_lane_graph()
-          ->mutable_lane_sequence(seq_id)
-          ->set_lane_sequence_id(seq_id);
+          ->CopyFrom(seq);
       ADEBUG << "Obstacle [" << id_ << "] set a lane sequence ["
              << lane_seq.ShortDebugString() << "].";
     }
@@ -1109,17 +1104,18 @@ void Obstacle::SetMotionStatus() {
     ++feature_riter;
   }
 
-  double delta_ts = feature_history_.front().timestamp() -
-                    feature_history_.back().timestamp();
   double std = FLAGS_still_obstacle_position_std;
-  double speed_sensibility =
-      std::sqrt(2 * history_size) * 4 * std / ((history_size + 1) * delta_ts);
-  double speed = feature_history_.front().speed();
   double speed_threshold = FLAGS_still_obstacle_speed_threshold;
   if (type_ == PerceptionObstacle::PEDESTRIAN ||
       type_ == PerceptionObstacle::BICYCLE) {
     speed_threshold = FLAGS_still_pedestrian_speed_threshold;
+    std = FLAGS_still_pedestrian_position_std;
   }
+  double delta_ts = feature_history_.front().timestamp() -
+                    feature_history_.back().timestamp();
+  double speed_sensibility =
+      std::sqrt(2 * history_size) * 4 * std / ((history_size + 1) * delta_ts);
+  double speed = feature_history_.front().speed();
   if (speed < speed_threshold) {
     ADEBUG << "Obstacle [" << id_ << "] has a small speed [" << speed
            << "] and is considered stationary.";

@@ -100,8 +100,8 @@ proto_library(
         ":dp_st_speed_config_proto_lib",
         ":poly_st_speed_config_proto_lib",
         ":qp_spline_path_config_proto_lib",
-        ":qp_spline_reference_line_smoother_config_proto_lib",
         ":qp_st_speed_config_proto_lib",
+        ":reference_line_smoother_config_proto_lib",
     ],
 )
 
@@ -118,6 +118,7 @@ proto_library(
         "//modules/common/proto:pnc_point_proto_lib",
         "//modules/localization/proto:localization_proto_lib",
         "//modules/perception/proto:perception_proto_lib",
+        "//modules/prediction/proto:prediction_proto_lib",
         "//modules/routing/proto:routing_proto_lib",
     ],
 )
@@ -144,16 +145,16 @@ proto_library(
 )
 
 cc_proto_library(
-    name = "qp_spline_reference_line_smoother_config_proto",
+    name = "reference_line_smoother_config_proto",
     deps = [
-        ":qp_spline_reference_line_smoother_config_proto_lib",
+        ":reference_line_smoother_config_proto_lib",
     ],
 )
 
 proto_library(
-    name = "qp_spline_reference_line_smoother_config_proto_lib",
+    name = "reference_line_smoother_config_proto_lib",
     srcs = [
-        "qp_spline_reference_line_smoother_config.proto",
+        "reference_line_smoother_config.proto",
     ],
 )
 
@@ -223,6 +224,41 @@ proto_library(
     name = "st_boundary_config_proto_lib",
     srcs = [
         "st_boundary_config.proto",
+    ],
+)
+
+cc_proto_library(
+    name = "lattice_sampling_config_proto",
+    deps = [
+        ":lattice_sampling_config_proto_lib",
+    ],
+)
+
+proto_library(
+    name = "lattice_sampling_config_proto_lib",
+    srcs = [
+        "lattice_sampling_config.proto",
+    ],
+    deps = [
+        "//modules/common/proto:pnc_point_proto_lib",
+    ],
+)
+
+cc_proto_library(
+    name = "lattice_structure_proto",
+    deps = [
+        ":lattice_structure_proto_lib",
+    ],
+)
+
+proto_library(
+    name = "lattice_structure_proto_lib",
+    srcs = [
+        "lattice_structure.proto",
+    ],
+    deps = [
+        ":lattice_sampling_config_proto_lib",
+        "//modules/common/proto:pnc_point_proto_lib",
     ],
 )
 

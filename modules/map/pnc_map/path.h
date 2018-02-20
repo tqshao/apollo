@@ -85,6 +85,11 @@ struct LaneSegment {
   double end_s = 0.0;
   double Length() const { return end_s - start_s; }
 
+  /**
+   * Join neighboring lane segments if they have the same lane id
+   */
+  static void Join(std::vector<LaneSegment>* segments);
+
   std::string DebugString() const;
 };
 
@@ -259,6 +264,8 @@ class Path {
   const PathApproximation* approximation() const { return &approximation_; }
   double length() const { return length_; }
 
+  const PathOverlap* NextLaneOverlap(double s) const;
+
   const std::vector<PathOverlap>& lane_overlaps() const {
     return lane_overlaps_;
   }
@@ -308,7 +315,7 @@ class Path {
 
   using GetOverlapFromLaneFunc =
       std::function<const std::vector<OverlapInfoConstPtr>&(const LaneInfo&)>;
-  void GetAllOverlaps(GetOverlapFromLaneFunc get_overlaps_from_lane,
+  void GetAllOverlaps(GetOverlapFromLaneFunc GetOverlaps_from_lane,
                       std::vector<PathOverlap>* const overlaps) const;
 
  protected:

@@ -90,6 +90,9 @@ class WebSocketHandler : public CivetWebSocketHandler {
   bool handleData(CivetServer *server, Connection *conn, int bits, char *data,
                   size_t data_len) override;
 
+  bool handleJsonData(Connection *conn, char *data, size_t data_len);
+  bool handleBinaryData(Connection *conn, char *data, size_t data_len);
+
   /**
    * @brief Callback method for when the connection is closed.
    *
@@ -113,7 +116,10 @@ class WebSocketHandler : public CivetWebSocketHandler {
    * being sent to this connection.
    */
   bool SendData(Connection *conn, const std::string &data,
-                bool skippable = false);
+                bool skippable = false, int op_code = WEBSOCKET_OPCODE_TEXT);
+
+  bool SendBinaryData(Connection *conn, const std::string &data,
+                      bool skippable = false);
 
   /**
    * @brief Add a new message handler for a message type.

@@ -59,6 +59,7 @@ class ReferenceLineInfo {
 
   bool AddObstacles(const std::vector<const Obstacle*>& obstacles);
   PathObstacle* AddObstacle(const Obstacle* obstacle);
+  void AddObstacleHelper(const Obstacle* obstacle, int* ret);
 
   PathDecision* path_decision();
   const PathDecision& path_decision() const;
@@ -75,6 +76,8 @@ class ReferenceLineInfo {
   double Cost() const { return cost_; }
   void AddCost(double cost) { cost_ += cost; }
   void SetCost(double cost) { cost_ = cost; }
+  double PriorityCost() const { return priority_cost_; }
+  void SetPriorityCost(double cost) { priority_cost_ = cost; }
 
   /**
    * @brief check if current reference line is started from another reference
@@ -134,6 +137,8 @@ class ReferenceLineInfo {
     offset_to_other_reference_line_ = offset;
   }
 
+  void set_is_on_reference_line() { is_on_reference_line_ = true; }
+
  private:
   void ExportTurnSignal(common::VehicleSignal* signal) const;
 
@@ -146,7 +151,7 @@ class ReferenceLineInfo {
   void SetObjectDecisions(ObjectDecisions* object_decisions) const;
   const common::VehicleState vehicle_state_;
   const common::TrajectoryPoint adc_planning_point_;
-  const ReferenceLine reference_line_;
+  ReferenceLine reference_line_;
 
   /**
    * @brief this is the number that measures the goodness of this reference
@@ -177,6 +182,8 @@ class ReferenceLineInfo {
   ADCTrajectory::RightOfWayStatus status_ = ADCTrajectory::UNPROTECTED;
 
   double offset_to_other_reference_line_ = 0.0;
+
+  double priority_cost_ = 0.0;
 
   DISALLOW_COPY_AND_ASSIGN(ReferenceLineInfo);
 };

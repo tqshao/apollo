@@ -67,7 +67,7 @@ function check_machine_arch() {
   fi
 
   #setup vtk folder name for different systems.
-  VTK_VERSION=$(find /usr/include/ -type d  -name "vtk-*" | cut -d '-' -f 2)
+  VTK_VERSION=$(find /usr/include/ -type d  -name "vtk-*" | tail -n1 | cut -d '-' -f 2)
   sed -i "s/VTK_VERSION/${VTK_VERSION}/g" WORKSPACE
 }
 
@@ -98,6 +98,10 @@ function generate_build_targets() {
   fi
   if ! $USE_ESD_CAN; then
      BUILD_TARGETS=$(echo $BUILD_TARGETS |tr ' ' '\n' | grep -v "esd")
+  fi
+  #skip msf for non x86_64 platforms
+  if [ ${MACHINE_ARCH} != "x86_64" ]; then
+     BUILD_TARGETS=$(echo $BUILD_TARGETS |tr ' ' '\n' | grep -v "msf")
   fi
 }
 
@@ -156,7 +160,7 @@ function cibuild() {
   //modules/prediction
   //modules/routing
   "
-  bazel build $DEFINES -c dbg $@ $BUILD_TARGETS
+  bazel build $DEFINES $@ $BUILD_TARGETS
   if [ $? -eq 0 ]; then
     success 'Build passed!'
   else
@@ -179,6 +183,7 @@ function build_py_proto() {
   mkdir py_proto
   PROTOC='./bazel-out/host/bin/external/com_google_protobuf/protoc'
   find modules/ -name "*.proto" \
+      | grep -v node_modules \
       | grep -v modules/drivers/gnss \
       | xargs ${PROTOC} --python_out=py_proto
   find py_proto/* -type d -exec touch "{}/__init__.py" \;
@@ -231,7 +236,7 @@ function release() {
   # modules data and conf
   MODULES_DIR="${APOLLO_DIR}/modules"
   mkdir -p $MODULES_DIR
-  for m in common control canbus localization decision perception dreamview map \
+  for m in common control canbus localization decision perception dreamview \
        prediction planning routing calibration third_party_perception monitor data \
        drivers/delphi_esr \
        drivers/gnss \
@@ -255,10 +260,8 @@ function release() {
 
   # tools
   cp -r modules/tools $MODULES_DIR
-
-  # ros
-  cp -Lr bazel-apollo/external/ros ${APOLLO_DIR}/
-  rm -f ${APOLLO_DIR}/ros/*.tar.gz
+  mkdir -p $MODULES_DIR/data/tools
+  cp -r modules/data/tools/recorder $MODULES_DIR/data/tools/
 
   # scripts
   cp -r scripts ${APOLLO_DIR}
@@ -297,10 +300,9 @@ function release() {
 
   # release info
   META="${APOLLO_DIR}/meta.ini"
-  echo "[Release]" > $META
   echo "git_commit: $(git rev-parse HEAD)" >> $META
-  echo "car_type : LINCOLN.MKZ" >> $META
-  echo "arch : ${MACHINE_ARCH}" >> $META
+  echo "car_type: LINCOLN.MKZ" >> $META
+  echo "arch: ${MACHINE_ARCH}" >> $META
 }
 
 function gen_coverage() {
@@ -380,7 +382,7 @@ function citest() {
   //modules/prediction/container/obstacles:obstacle_test
   //modules/dreamview/backend/simulation_world:simulation_world_service_test
   "
-  bazel test $DEFINES --config=unit_test -c dbg --test_verbose_timeout_warnings $@ $BUILD_TARGETS
+  bazel test $DEFINES --config=unit_test --test_verbose_timeout_warnings $@ $BUILD_TARGETS
   if [ $? -eq 0 ]; then
     success 'Test passed!'
     return 0

@@ -43,6 +43,7 @@
 #include "modules/planning/common/obstacle.h"
 #include "modules/planning/common/reference_line_info.h"
 #include "modules/planning/common/trajectory/publishable_trajectory.h"
+#include "modules/planning/reference_line/reference_line_provider.h"
 
 namespace apollo {
 namespace planning {
@@ -58,7 +59,8 @@ class Frame {
   explicit Frame(uint32_t sequence_num,
                  const common::TrajectoryPoint &planning_start_point,
                  const double start_time,
-                 const common::VehicleState &vehicle_state);
+                 const common::VehicleState &vehicle_state,
+                 ReferenceLineProvider *reference_line_provider);
 
   const common::TrajectoryPoint &PlanningStartPoint() const;
   common::Status Init();
@@ -73,8 +75,6 @@ class Frame {
 
   std::list<ReferenceLineInfo> &reference_line_info();
 
-  void AddObstacle(const Obstacle &obstacle);
-
   Obstacle *Find(const std::string &id);
 
   const ReferenceLineInfo *FindDriveReferenceLineInfo();
@@ -83,13 +83,14 @@ class Frame {
 
   const std::vector<const Obstacle *> obstacles() const;
 
-  const Obstacle *AddStaticVirtualObstacle(const std::string &id,
-                                           const common::math::Box2d &box);
+  const Obstacle *CreateVirtualStopObstacle(
+      ReferenceLineInfo *const reference_line_info,
+      const std::string &obstacle_id, const double obstacle_s);
 
-  const Obstacle *AddVirtualStopObstacle(
-      ReferenceLineInfo* const reference_line_info,
-      const std::string &object_id,
-      const double object_s);
+  const Obstacle *CreateStaticObstacle(
+      ReferenceLineInfo *const reference_line_info,
+      const std::string &obstacle_id, const double obstacle_start_s,
+      const double obstacle_end_s);
 
   bool Rerouting();
 
@@ -123,6 +124,14 @@ class Frame {
    */
   int CreateDestinationObstacle();
 
+  /**
+   * @brief create a static virtual obstacle
+   */
+  const Obstacle *CreateStaticVirtualObstacle(const std::string &id,
+                                              const common::math::Box2d &box);
+
+  void AddObstacle(const Obstacle &obstacle);
+
  private:
   uint32_t sequence_num_ = 0;
   const hdmap::HDMap *hdmap_ = nullptr;
@@ -141,11 +150,15 @@ class Frame {
 
   ThreadSafeIndexedObstacles obstacles_;
 
+  perception::CIPVInfo cipv_info_;
+
   ChangeLaneDecider change_lane_decider_;
 
   ADCTrajectory trajectory_;  // last published trajectory
 
   std::unique_ptr<LagPrediction> lag_predictor_;
+
+  ReferenceLineProvider *reference_line_provider_ = nullptr;
 };
 
 class FrameHistory : public IndexedQueue<uint32_t, Frame> {

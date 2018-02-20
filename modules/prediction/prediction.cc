@@ -22,6 +22,7 @@
 #include "modules/common/math/vec2d.h"
 #include "modules/common/time/time.h"
 #include "modules/common/util/file.h"
+#include "modules/prediction/common/feature_output.h"
 #include "modules/prediction/common/prediction_gflags.h"
 #include "modules/prediction/common/prediction_map.h"
 #include "modules/prediction/container/container_manager.h"
@@ -91,19 +92,24 @@ Status Prediction::Init() {
     return OnError("Map cannot be loaded.");
   }
 
+  if (FLAGS_prediction_offline_mode) {
+    if (!FeatureOutput::Ready()) {
+      return OnError("Feature output is not ready.");
+    }
+  }
+
   return Status::OK();
 }
 
 Status Prediction::Start() { return Status::OK(); }
 
-void Prediction::Stop() {}
+void Prediction::Stop() {
+  if (FLAGS_prediction_offline_mode) {
+    FeatureOutput::Close();
+  }
+}
 
 void Prediction::OnLocalization(const LocalizationEstimate& localization) {
-  ObstaclesContainer* obstacles_container = dynamic_cast<ObstaclesContainer*>(
-      ContainerManager::instance()->GetContainer(
-          AdapterConfig::PERCEPTION_OBSTACLES));
-  CHECK_NOTNULL(obstacles_container);
-
   PoseContainer* pose_container = dynamic_cast<PoseContainer*>(
       ContainerManager::instance()->GetContainer(AdapterConfig::LOCALIZATION));
   CHECK_NOTNULL(pose_container);
@@ -132,9 +138,6 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
     ros::shutdown();
   }
 
-  ADEBUG << "Received a perception message ["
-         << perception_obstacles.ShortDebugString() << "].";
-
   double start_timestamp = Clock::NowInSeconds();
 
   // Insert obstacle
@@ -143,6 +146,9 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
           AdapterConfig::PERCEPTION_OBSTACLES));
   CHECK_NOTNULL(obstacles_container);
   obstacles_container->Insert(perception_obstacles);
+
+  ADEBUG << "Received a perception message ["
+         << perception_obstacles.ShortDebugString() << "].";
 
   // Update ADC status
   PoseContainer* pose_container = dynamic_cast<PoseContainer*>(
@@ -164,8 +170,15 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
     adc_container->SetPosition(adc_position);
   }
 
-  // Make predictions
+  // Make evaluations
   EvaluatorManager::instance()->Run(perception_obstacles);
+
+  // No prediction for offline mode
+  if (FLAGS_prediction_offline_mode) {
+    return;
+  }
+
+  // Make predictions
   PredictorManager::instance()->Run(perception_obstacles);
 
   auto prediction_obstacles =
@@ -189,11 +202,6 @@ void Prediction::RunOnce(const PerceptionObstacles& perception_obstacles) {
   }
 
   Publish(&prediction_obstacles);
-
-  ADEBUG << "Received a perception message ["
-         << perception_obstacles.ShortDebugString() << "].";
-  ADEBUG << "Published a prediction message ["
-         << prediction_obstacles.ShortDebugString() << "].";
 }
 
 Status Prediction::OnError(const std::string& error_msg) {

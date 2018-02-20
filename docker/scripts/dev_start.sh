@@ -17,9 +17,10 @@
 ###############################################################################
 
 INCHINA="no"
+LOCAL_IMAGE="no"
 VERSION=""
 ARCH=$(uname -m)
-VERSION_X86_64="dev-x86_64-20180103_1300"
+VERSION_X86_64="dev-x86_64-20180130_1338"
 VERSION_AARCH64="dev-aarch64-20170927_1111"
 VERSION_OPT=""
 
@@ -28,9 +29,10 @@ function show_usage()
 cat <<EOF
 Usage: $(basename $0) [options] ...
 OPTIONS:
-    -C  pull docker image from China mirror
-    -h, --help   display this help and exit
-    -image <version>    specify which version of a docker image to pull
+    -C                     Pull docker image from China mirror.
+    -h, --help             Display this help and exit.
+    -t, --tag <version>    Specify which version of a docker image to pull.
+    -l, --local            Use local docker image.
 EOF
 exit 0
 }
@@ -42,21 +44,28 @@ do
         INCHINA="yes"
         ;;
     -image)
+        echo -e "\033[093mWarning\033[0m: This option has been replaced by \"-t\" and \"--tag\", please use the new one.\n"
+        show_usage
+        ;;
+    -t|--tag)
         VAR=$1
-        [ -z $VERSION_OPT ] || echo -e "\033[093mWarning\033[0m: mixed option -image with $VERSION_OPT, only the last one will take effect.\n "
+        [ -z $VERSION_OPT ] || echo -e "\033[093mWarning\033[0m: mixed option $VAR with $VERSION_OPT, only the last one will take effect.\n"
         shift
         VERSION_OPT=$1
         [ -z ${VERSION_OPT// /} ] && echo -e "Missing parameter for $VAR" && exit 2
         [[ $VERSION_OPT =~ ^-.* ]] && echo -e "Missing parameter for $VAR" && exit 2
         ;;
     dev-*) # keep backward compatibility, should be removed from further version.
-        [ -z $VERSION_OPT ] || echo -e "\033[093mWarning\033[0m: mixed option $1 with -image, only the last one will take effect.\n "
+        [ -z $VERSION_OPT ] || echo -e "\033[093mWarning\033[0m: mixed option $1 with -t/--tag, only the last one will take effect.\n"
         VERSION_OPT=$1
         echo -e "\033[93mWarning\033[0m: You are using an old style command line option which may be removed from"
-        echo -e "further versoin, please use -image <version> instead.\n"
+        echo -e "further versoin, please use -t <version> instead.\n"
         ;;
     -h|--help)
         show_usage
+        ;;
+    -l|--local)
+        LOCAL_IMAGE="yes"
         ;;
     *)
         echo -e "\033[93mWarning\033[0m: Unknown option: $1"
@@ -98,11 +107,15 @@ source ${APOLLO_ROOT_DIR}/scripts/apollo_base.sh
 
 function main(){
 
-    info "Start pulling docker image $IMG ..."
-    docker pull $IMG
-    if [ $? -ne 0 ];then
-        error "Failed to pull docker image."
-        exit 1
+    if [ "$LOCAL_IMAGE" = "yes" ];then
+        info "Start docker container based on local image : $IMG"
+    else
+        info "Start pulling docker image $IMG ..."
+        docker pull $IMG
+        if [ $? -ne 0 ];then
+            error "Failed to pull docker image."
+            exit 1
+        fi
     fi
 
     docker ps -a --format "{{.Names}}" | grep 'apollo_dev' 1>/dev/null
@@ -133,11 +146,19 @@ function main(){
         mkdir "$HOME/.cache"
     fi
 
+    LOCALIZATION_VOLUME=apollo_localization_volume
+    docker stop ${LOCALIZATION_VOLUME} > /dev/null 2>&1
+
+    LOCALIZATION_VOLUME_IMAGE=apolloauto/apollo:localization_volume-${ARCH}-latest
+    docker pull ${LOCALIZATION_VOLUME_IMAGE}
+    docker run -it -d --rm --name ${LOCALIZATION_VOLUME} ${LOCALIZATION_VOLUME_IMAGE}
+
     info "Starting docker container \"apollo_dev\" ..."
     docker run -it \
         -d \
         --privileged \
         --name apollo_dev \
+        --volumes-from ${LOCALIZATION_VOLUME} \
         -e DISPLAY=$display \
         -e DOCKER_USER=$USER \
         -e USER=$USER \

@@ -28,6 +28,10 @@ DEFINE_string(planning_adapter_config_filename,
               "modules/planning/conf/adapter.conf",
               "The adapter configuration file");
 
+DEFINE_string(smoother_config_filename,
+              "modules/planning/conf/smoother_config.pb.txt",
+              "The configuration file for qp sline smoother");
+
 DEFINE_string(rtk_trajectory_filename, "modules/planning/data/garage.csv",
               "Loop rate for planning node");
 
@@ -56,7 +60,7 @@ DEFINE_double(look_forward_time_sec, 8.0,
               "when creating reference line from routing");
 DEFINE_bool(enable_reference_line_stitching, true,
             "Enable stitching reference line, which can reducing computing "
-            "time and improve stabilty");
+            "time and improve stability");
 DEFINE_double(look_forward_extend_distance, 50,
               "The step size when extending reference line.");
 DEFINE_double(reference_line_stitch_overlap_distance, 20,
@@ -76,8 +80,6 @@ DEFINE_double(rerouting_cooldown_time, 0.6,
 DEFINE_bool(enable_smooth_reference_line, true,
             "enable smooth the map reference line");
 
-DEFINE_bool(enable_spiral_reference_line, false,
-            "enable new spiral based reference line");
 DEFINE_double(spiral_smoother_max_deviation, 0.1,
               "The max deviation of spiral reference line smoother.");
 DEFINE_int32(spiral_smoother_num_iteration, 1000,
@@ -90,8 +92,8 @@ DEFINE_bool(prioritize_change_lane, false,
             "change lane strategy has higher priority, always use a valid "
             "change lane path if such path exists");
 DEFINE_bool(reckless_change_lane, false,
-            "Alway allow the vehicle change lane. The vehicle may contineous "
-            "change lane. This is mainly test purpose");
+            "Always allow the vehicle change lane. The vehicle may continue "
+            "changing lane. This is mainly test purpose");
 DEFINE_double(change_lane_fail_freeze_time, 3.0,
               "seconds. Not allowed to change lane this amount of time "
               "if it just finished change lane or failed to change lane");
@@ -157,20 +159,21 @@ DEFINE_double(longitudinal_acceleration_lower_bound, -4.5,
               "The lowest longitudinal acceleration allowed.");
 DEFINE_double(longitudinal_acceleration_upper_bound, 4.0,
               "The highest longitudinal acceleration allowed.");
-
-DEFINE_double(lateral_jerk_bound, 4.0,
-              "Bound of lateral jerk; symmetric for left and right");
+DEFINE_double(lateral_acceleration_bound, 4.0,
+              "Bound of lateral acceleration; symmetric for left and right");
 
 DEFINE_double(longitudinal_jerk_lower_bound, -4.0,
               "The lower bound of longitudinal jerk.");
 DEFINE_double(longitudinal_jerk_upper_bound, 4.0,
               "The upper bound of longitudinal jerk.");
+DEFINE_double(lateral_jerk_bound, 4.0,
+              "Bound of lateral jerk; symmetric for left and right");
 
 DEFINE_double(dl_bound, 0.10,
               "The bound for derivative l in s-l coordinate system.");
-DEFINE_double(kappa_bound, 0.20, "The bound for vehicle curvature");
+DEFINE_double(kappa_bound, 0.20, "The bound for trajectory curvature");
 DEFINE_double(dkappa_bound, 0.02,
-              "The bound for vehicle curvature change rate");
+              "The bound for trajectory curvature change rate");
 
 // ST Boundary
 DEFINE_double(st_max_s, 100, "the maximum s of st boundary");
@@ -194,23 +197,15 @@ DEFINE_double(max_stop_distance_obstacle, 10.0,
               "max stop distance from in-lane obstacle (meters)");
 DEFINE_double(min_stop_distance_obstacle, 6.0,
               "min stop distance from in-lane obstacle (meters)");
-DEFINE_double(stop_distance_destination, 0.5,
-              "stop distance from destination line");
-DEFINE_double(stop_distance_traffic_light, 3.0,
-              "stop distance from traffic light line");
-DEFINE_double(stop_distance_crosswalk, 3.0,
-              "stop distance from stop line of crosswalk");
-DEFINE_double(stop_distance_stop_sign, 3.0,
-              "stop distance from stop line of stop sign");
-DEFINE_double(destination_check_distance, 5.0,
-              "if the distance between destination and ADC is less than this,"
-              " it is considered to reach destination");
 DEFINE_double(nudge_distance_obstacle, 0.5,
               "minimum distance to nudge a obstacle (meters)");
 DEFINE_double(follow_min_distance, 3.0,
               "min follow distance for vehicles/bicycles/moving objects");
-DEFINE_double(yield_min_distance, 3.0,
-              "min yield distance for vehicles/bicycles/moving objects");
+DEFINE_double(yield_distance, 3.0,
+              "min yield distance for vehicles/moving objects "
+              "other than pedestrians/bicycles");
+DEFINE_double(yield_distance_pedestrian_bycicle, 5.0,
+              "min yield distance for pedestrians/bicycles");
 DEFINE_double(
     follow_time_buffer, 2.5,
     "follow time buffer (in second) to calculate the following distance.");
@@ -220,14 +215,10 @@ DEFINE_double(
 DEFINE_double(within_lane_bound, 4.0,
               "distance to be considered within current lane");
 
-DEFINE_string(destination_obstacle_id, "DEST",
-              "obstacle id for converting destination to an obstacle");
 DEFINE_double(virtual_stop_wall_length, 0.1,
               "virtual stop wall length (meters)");
 DEFINE_double(virtual_stop_wall_height, 2.0,
               "virtual stop wall height (meters)");
-DEFINE_string(reference_line_end_obstacle_id, "REF_END",
-              "Obstacle id for the end of reference line obstacle");
 DEFINE_double(signal_expire_time_sec, 5.0,
               "consider the signal msg is expired if its timestamp over "
               "this threshold (second)");
@@ -250,28 +241,40 @@ DEFINE_bool(enable_rule_layer, true,
 
 // Traffic decision
 /// common
-DEFINE_double(stop_max_distance_buffer, 4.0,
+DEFINE_double(max_stop_distance_buffer, 4.0,
               "distance buffer of passing stop line");
-DEFINE_double(stop_min_speed, 0.2, "min speed(m/s) for computing stop");
-DEFINE_double(stop_max_deceleration, 6.0, "max deceleration");
-DEFINE_double(max_valid_stop_distance, 2.0,
+DEFINE_double(max_stop_speed, 0.2, "max speed(m/s) to be considered as a stop");
+DEFINE_double(max_stop_deceleration, 6.0, "max deceleration");
+DEFINE_double(max_valid_stop_distance, 3.0,
               "max distance(m) to the stop line to be "
               "considered as a valid stop");
-
-/// Clear Zone
-DEFINE_string(clear_zone_virtual_object_id_prefix, "CZ_",
-              "prefix for converting clear zone id to virtual object id");
+DEFINE_double(creep_stop_distance, 0.5,
+              "stop distance(m) to the stop line of next lane overlap "
+              "while creeping ");
+/// keep_clear
+DEFINE_bool(enable_keep_clear, false, "enable keep clear zone");
+DEFINE_string(keep_clear_virtual_obstacle_id_prefix, "KC_",
+              "prefix for converting keep_clear id to virtual obstacle id");
+DEFINE_string(keep_clear_junction_virtual_obstacle_id_prefix, "KC_JC_",
+              "prefix for converting keep_clear(junction) id "
+              "to virtual obstacle id");
+DEFINE_double(keep_clear_min_pass_distance, 2.0,
+              "valid min distance(m) for vehicles to be considered as "
+              "have passed keep_clear zone (stop_line_end_s)");
 /// traffic light
-DEFINE_string(signal_light_virtual_object_id_prefix, "SL_",
-              "prefix for converting signal id to virtual object id");
-DEFINE_double(max_deacceleration_for_yellow_light_stop, 3.0,
+DEFINE_bool(enable_traffic_light, true, "True to enable traffic light input.");
+DEFINE_string(signal_light_virtual_obstacle_id_prefix, "SL_",
+              "prefix for converting signal id to virtual obstacle id");
+DEFINE_double(max_stop_deacceleration_for_yellow_light, 3.0,
               "treat yellow light as red when deceleration (abstract value"
               " in m/s^2) is less than this threshold; otherwise treated"
               " as green light");
+DEFINE_double(traffic_light_stop_distance, 1.0,
+              "stop distance from traffic light line");
 /// crosswalk
-DEFINE_bool(enable_crosswalk, false, "enable crosswalk");
-DEFINE_string(crosswalk_virtual_object_id_prefix, "CW_",
-              "prefix for converting crosswalk id to virtual object id");
+DEFINE_bool(enable_crosswalk, true, "enable crosswalk");
+DEFINE_string(crosswalk_virtual_obstacle_id_prefix, "CW_",
+              "prefix for converting crosswalk id to virtual obstacle id");
 DEFINE_double(crosswalk_expand_distance, 2.0,
               "crosswalk expand distance(meter) "
               "for pedestrian/bicycle detection");
@@ -279,12 +282,45 @@ DEFINE_double(crosswalk_strick_l_distance, 4.0,
               "strick stop rule within this l_distance");
 DEFINE_double(crosswalk_loose_l_distance, 5.0,
               "loose stop rule beyond this l_distance");
+DEFINE_double(crosswalk_min_pass_distance, 1.0,
+              "valid min distance(m) for vehicles to be considered as "
+              "have passed crosswalk (stop_line_end_s)");
+DEFINE_double(crosswalk_stop_distance, 1.0,
+              "stop distance from stop line of crosswalk");
 /// stop_sign
-DEFINE_bool(enable_stop_sign, false, "enable stop_sign");
-DEFINE_string(stop_sign_virtual_object_id_prefix, "SS_",
-              "prefix for converting stop_sign id to virtual object id");
-DEFINE_double(stop_duration_for_stop_sign, 3,
+DEFINE_bool(enable_stop_sign, true, "enable stop_sign");
+DEFINE_bool(enable_stop_sign_creeping, false,
+            "enable stop_sign creeping forward at one way "
+            "or two way stop signs.");
+DEFINE_string(stop_sign_virtual_obstacle_id_prefix, "SS_",
+              "prefix for converting stop_sign id to virtual obstacle id");
+DEFINE_double(stop_sign_stop_duration, 3.0,
               "min time(second) to stop at stop sign");
+DEFINE_double(stop_sign_min_pass_distance, 3.0,
+              "valid min distance(m) for vehicles to be considered as "
+              "have passed stop sign (stop_line_end_s)");
+DEFINE_double(stop_sign_stop_distance, 1.0,
+              "stop distance from stop line of stop sign");
+DEFINE_double(stop_sign_max_watch_vehicle_stop_speed, 0.5,
+              "max speed(m/s) for watch vehicles to be considered as a stop."
+              "(this check is looser than adc)");
+
+DEFINE_bool(enable_sidepass, true,
+            "True to enable side pass long stopping obstacles");
+DEFINE_double(sidepass_wait_time_sec, 30.0,
+              "Waiting time in seconds before deciding to sidepass");
+
+/// destination
+DEFINE_string(destination_obstacle_id, "DEST",
+              "obstacle id for converting destination to an obstacle");
+DEFINE_double(destination_check_distance, 5.0,
+              "if the distance between destination and ADC is less than this,"
+              " it is considered to reach destination");
+DEFINE_double(destination_stop_distance, 0.5,
+              "stop distance from destination line");
+/// reference_line end
+DEFINE_string(reference_line_end_obstacle_id_prefix, "REF_END_",
+              "Obstacle id for the end of reference line obstacle");
 
 // according to DMV's rule, turn signal should be on within 200 ft from
 // intersection.
@@ -309,20 +345,18 @@ DEFINE_bool(enable_prediction, true, "True to enable prediction input.");
 
 DEFINE_bool(enable_lag_prediction, true,
             "Enable lagged prediction, which is more tolerant to obstacles "
-            "that appear and disappear dequeickly");
+            "that appear and disappear quickly");
 DEFINE_int32(lag_prediction_min_appear_num, 5,
              "The minimum of appearance of the obstacle for lagged prediction");
 DEFINE_double(lag_prediction_max_disappear_num, 3,
-              "In lagged prediction, ingnore obstacle disappeared for more "
+              "In lagged prediction, ignore obstacle disappeared for more "
               "than this value");
 DEFINE_double(lag_prediction_protection_distance, 30,
               "Within this distance, we do not use lagged prediction");
 
 DEFINE_double(perception_confidence_threshold, 0.4,
-              "Skip the obstacle if its confiderence is lower than "
+              "Skip the obstacle if its confidence is lower than "
               "this threshold.");
-
-DEFINE_bool(enable_traffic_light, true, "True to enable traffic light input.");
 
 // QpSt optimizer
 DEFINE_bool(enable_slowdown_profile_generator, true,
@@ -336,11 +370,60 @@ DEFINE_bool(enable_follow_accel_constraint, true,
 DEFINE_bool(enable_sqp_solver, true, "True to enable SQP solver.");
 
 /// thread pool
-
 DEFINE_int32(num_thread_planning_thread_pool, 5,
              "num of thread used in planning thread pool.");
+DEFINE_bool(use_multi_thread_to_add_obstacles, false,
+            "use multiple thread to add obstacles.");
 DEFINE_bool(
     enable_multi_thread_in_dp_poly_path, false,
     "Enable multiple thread to calculation curve cost in dp_poly_path.");
 DEFINE_bool(enable_multi_thread_in_dp_st_graph, false,
             "Enable multiple thread to calculation curve cost in dp_st_graph.");
+
+/// Lattice Planner
+DEFINE_double(lattice_epsilon, 1e-6, "Epsilon in lattice planner.");
+DEFINE_int32(num_lattice_traj_to_plot, 5,
+             "Number of lattice trajectories to plot");
+DEFINE_double(default_cruise_speed, 5.0, "default cruise speed");
+DEFINE_double(spiral_downsample_curvature_thred, 0.02,
+              "curvature threshold for down sampling reference line points");
+DEFINE_bool(enable_lattice_st_image_dump, false,
+            "enable sending the lattice st image");
+DEFINE_bool(enable_auto_tuning, false, "enable auto tuning data emission");
+
+DEFINE_double(trajectory_time_resolution, 0.1,
+              "Trajectory time resolution in planning");
+DEFINE_double(trajectory_space_resolution, 1.0,
+              "Trajectory space resolution in planning");
+DEFINE_double(collision_buffer_expansion_ratio, 0.0,
+              "The ratio w.r.t. the vehicle dimension "
+              "to expand in collision checking");
+DEFINE_double(decision_horizon, 200.0,
+              "Longitudinal horizon for decision making");
+DEFINE_bool(enable_backup_trajectory, false,
+            "If generate backup trajectory when planning fail");
+DEFINE_double(backup_trajectory_cost, 1000.0,
+              "Default cost of backup trajectory");
+
+// Lattice Evaluate Parameters
+DEFINE_double(weight_lon_travel, 6.0, "Weight of longitudinal travel cost");
+DEFINE_double(weight_lon_jerk, 1.0, "Weight of longitudinal jerk cost");
+DEFINE_double(weight_lon_collision, 2.0,
+              "Weight of logitudinal collision cost");
+DEFINE_double(weight_lat_offset, 2.0, "Weight of lateral offset cost");
+DEFINE_double(weight_lat_comfort, 10.0, "Weight of lateral comfort cost");
+DEFINE_double(priority_cost_gap, 5.0,
+              "Gap to increase the priority cost of reference line.");
+DEFINE_double(weight_same_side_offset, 1.0,
+              "Weight of same side lateral offset cost");
+DEFINE_double(weight_opposite_side_offset, 10.0,
+              "Weight of opposite side lateral offset cost");
+DEFINE_double(weight_dist_travelled, 10.0, "Weight of travelled distance cost");
+DEFINE_double(weight_target_speed, 1.0, "Weight of target speed cost");
+DEFINE_double(lat_offset_bound, 3.0, "The bound of lateral offset");
+DEFINE_double(lon_collision_yield_buffer, 1.0,
+              "Longitudinal collision buffer for yield");
+DEFINE_double(lon_collision_overtake_buffer, 5.0,
+              "Longitudinal collision buffer for overtake");
+DEFINE_double(lon_collision_cost_std, 0.5,
+              "The standard deviation of logitudinal collision cost function");
