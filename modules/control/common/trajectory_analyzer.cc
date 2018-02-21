@@ -34,6 +34,8 @@ namespace control {
 namespace {
 
 // Squared distance from the point to (x, y).
+// TrajectoryPoint includes PathPoint(coordinates,theta,kappa,kappa rate,s),
+//linear velocity, linear acceleration,t and lane number)
 double PointDistanceSquare(const TrajectoryPoint &point, const double x,
                            const double y) {
   const double dx = point.path_point().x() - x;
@@ -50,7 +52,8 @@ PathPoint TrajectoryPointToPathPoint(const TrajectoryPoint &point) {
 }
 
 }  // namespace
-
+// ADCTrajectoryPoint depracated, replaced by TrajectoryPoint,
+// route SL-coordinate depracated, don't have lane number
 TrajectoryAnalyzer::TrajectoryAnalyzer(
     const planning::ADCTrajectory *planning_published_trajectory) {
   header_time_ = planning_published_trajectory->header().timestamp_sec();
