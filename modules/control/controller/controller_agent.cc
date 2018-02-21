@@ -76,7 +76,9 @@ Status ControllerAgent::InitializeConf(const ControlConf *control_conf) {
   }
   return Status::OK();
 }
-
+// First register controllers to controller library, then initialize config
+// (create object for active controllers and put registered controllers into
+// controller list)
 Status ControllerAgent::Init(const ControlConf *control_conf) {
   RegisterControllers(control_conf);
   CHECK(InitializeConf(control_conf).ok()) << "Fail to initialize config.";
