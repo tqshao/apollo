@@ -39,7 +39,7 @@ TrajectoryEvaluator::TrajectoryEvaluator(
     const std::vector<std::shared_ptr<Trajectory1d>>& lon_trajectories,
     const std::vector<std::shared_ptr<Trajectory1d>>& lat_trajectories,
     bool is_auto_tuning,
-    std::shared_ptr<PathTimeNeighborhood> pathtime_neighborhood)
+    std::shared_ptr<PathTimeGraph> pathtime_neighborhood)
     : is_auto_tuning_(is_auto_tuning),
       pathtime_neighborhood_(pathtime_neighborhood) {
 
@@ -53,10 +53,12 @@ TrajectoryEvaluator::TrajectoryEvaluator(
       continue;
     }
     for (const auto lat_trajectory : lat_trajectories) {
+      /**
       if (!ConstraintChecker1d::IsValidLateralTrajectory(*lat_trajectory,
                                                          *lon_trajectory)) {
         continue;
       }
+      */
       if (!is_auto_tuning_) {
         double cost =
             Evaluate(planning_target, lon_trajectory, lat_trajectory);

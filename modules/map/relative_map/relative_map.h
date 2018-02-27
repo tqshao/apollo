@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright 2017 The Apollo Authors. All Rights Reserved.
+ * Copyright 2018 The Apollo Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,13 @@
 #include <memory>
 #include <string>
 
-#include "modules/map/proto/map_msg.pb.h"
+#include "modules/map/relative_map/proto/navigation.pb.h"
+#include "modules/map/relative_map/proto/relative_map_config.pb.h"
 #include "modules/perception/proto/perception_obstacle.pb.h"
 
 #include "modules/common/monitor_log/monitor_log_buffer.h"
 #include "modules/common/status/status.h"
+#include "modules/map/relative_map/navigation_lane.h"
 #include "modules/map/relative_map/relative_map_interface.h"
 
 namespace apollo {
@@ -69,13 +71,27 @@ class RelativeMap : public RelativeMapInterface {
   void RunOnce(
       const perception::PerceptionObstacles& perception_obstacles) override;
 
+  /**
+   * @brief Data callback upon receiving a navigation message.
+   * This function is used to update the navigation path.
+   * @param navigation_info received message.
+   */
+  void RunOnce(const NavigationInfo& navigation_info);
+
  private:
   void CreateMapFromPerception(
       const apollo::perception::PerceptionObstacles& perception_obstacles,
-      apollo::hdmap::MapMsg* map_msg);
+      MapMsg* map_msg);
+
+  bool CreateMapFromNavigationPath(const NavigationPath& navigation_path,
+                                   double left_width, double right_width,
+                                   hdmap::Map* hdmap);
 
   common::adapter::AdapterManagerConfig adapter_conf_;
+  RelativeMapConfig config_;
   apollo::common::monitor::MonitorLogger monitor_logger_;
+
+  NavigationLane navigation_lane_;
 };
 
 }  // namespace relative_map

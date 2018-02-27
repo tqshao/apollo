@@ -47,9 +47,12 @@ using Matrix = Eigen::MatrixXd;
 namespace {
 
 std::string GetLogFileName() {
+  // time_t: time since epoch begins
   time_t raw_time;
   char name_buffer[80];
   std::time(&raw_time);
+  // expand the format specifiers in "/tmp..." with the time value and
+  // copies it in the name_buffer
   strftime(name_buffer, 80, "/tmp/steer_log_simple_optimal_%F_%H%M%S.csv",
            localtime(&raw_time));
   return std::string(name_buffer);
@@ -77,7 +80,10 @@ void WriteHeaders(std::ofstream &file_stream) {
 
 LatController::LatController() : name_("LQR-based Lateral Controller") {
   if (FLAGS_enable_csv_debug) {
+    // file operation
     steer_log_file_.open(GetLogFileName());
+    // set the floatfield format flag for the str stream to fixed
+    // floating-point values are written using fixed-point notation
     steer_log_file_ << std::fixed;
     steer_log_file_ << std::setprecision(6);
     WriteHeaders(steer_log_file_);

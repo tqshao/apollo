@@ -44,6 +44,9 @@ export default class RosWebSocketEndpoint {
                     STORE.hmi.updateStatus(message.data);
                     RENDERER.updateGroundImage(STORE.hmi.currentMap);
                     break;
+                case "SimControlStatus":
+                    STORE.setOptionStatus('simControlEnabled', message.enabled);
+                    break;
                 case "SimWorldUpdate":
                     this.checkMessage(message);
 
@@ -95,7 +98,8 @@ export default class RosWebSocketEndpoint {
         // Request simulation world every 100ms.
         clearInterval(this.timer);
         this.timer = setInterval(() => {
-            if (this.websocket.readyState === this.websocket.OPEN) {
+            if (this.websocket.readyState === this.websocket.OPEN &&
+                !STORE.hmi.showNavigationMap) {
                 // Load default routing end point.
                 if (this.updatePOI) {
                     this.requestDefaultRoutingEndPoint();

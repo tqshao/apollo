@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../lattice/behavior_decider/path_time_graph.h"
 #include "modules/common/adapters/adapter_manager.h"
 #include "modules/common/log.h"
 #include "modules/common/macro.h"
@@ -33,7 +34,6 @@
 #include "modules/planning/common/planning_gflags.h"
 #include "modules/planning/constraint_checker/collision_checker.h"
 #include "modules/planning/constraint_checker/constraint_checker.h"
-#include "modules/planning/lattice/behavior_decider/path_time_neighborhood.h"
 #include "modules/planning/lattice/trajectory_generator/backup_trajectory_generator.h"
 #include "modules/planning/lattice/trajectory_generator/trajectory1d_generator.h"
 #include "modules/planning/lattice/trajectory_generator/trajectory_combiner.h"
@@ -107,15 +107,14 @@ Status LatticePlanner::Plan(const TrajectoryPoint& planning_start_point,
   bool first_reference_line = true;
   for (auto& reference_line_info : frame->reference_line_info()) {
     reference_line_info.SetPriorityCost(priority_cost);
-    status = PlanOnReferenceLine(planning_start_point, frame,
-                                 &reference_line_info);
+    status =
+        PlanOnReferenceLine(planning_start_point, frame, &reference_line_info);
     if (status != Status::OK()) {
       if (reference_line_info.IsChangeLanePath()) {
         AERROR << "Planner failed to change lane to "
                << reference_line_info.Lanes().Id();
       } else {
-        AERROR << "Planner failed to "
-               << reference_line_info.Lanes().Id();
+        AERROR << "Planner failed to " << reference_line_info.Lanes().Id();
       }
     }
     if (first_reference_line) {
@@ -160,8 +159,8 @@ Status LatticePlanner::PlanOnReferenceLine(
   current_time = Clock::NowInSeconds();
 
   // 4. parse the decision and get the planning target.
-  std::shared_ptr<PathTimeNeighborhood> path_time_neighborhood_ptr(
-      new PathTimeNeighborhood(frame->obstacles(), init_s[0],
+  std::shared_ptr<PathTimeGraph> path_time_neighborhood_ptr(
+      new PathTimeGraph(frame->obstacles(), init_s[0],
                                discretized_reference_line));
 
   decider_.UpdatePathTimeNeighborhood(path_time_neighborhood_ptr);
@@ -342,7 +341,8 @@ Status LatticePlanner::PlanOnReferenceLine(
     return Status::OK();
   } else {
     AERROR << "Planning failed";
-    if (FLAGS_enable_backup_trajectory) {
+    if (FLAGS_enable_backup_trajectory &&
+        !reference_line_info->IsChangeLanePath()) {
       AERROR << "Use backup trajectory";
       BackupTrajectoryGenerator backup_trajectory_generator(
           init_s, init_d, planning_init_point.relative_time(),
@@ -351,7 +351,7 @@ Status LatticePlanner::PlanOnReferenceLine(
           backup_trajectory_generator.GenerateTrajectory(
               discretized_reference_line);
       reference_line_info->SetCost(FLAGS_backup_trajectory_cost);
-
+      reference_line_info->SetTrajectory(trajectory);
       reference_line_info->SetDrivable(true);
       return Status::OK();
 

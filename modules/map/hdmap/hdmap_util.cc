@@ -22,6 +22,7 @@ namespace apollo {
 namespace hdmap {
 
 using apollo::common::adapter::AdapterManager;
+using apollo::relative_map::MapMsg;
 
 namespace {
 
@@ -43,6 +44,18 @@ std::string FindFirstExist(const std::string& dir, const std::string& files) {
 }
 
 }  // namespace
+
+const SpeedControls* GetSpeedControls() {
+  static std::unique_ptr<SpeedControls> speed_control_;
+  if (speed_control_ == nullptr) {
+    speed_control_.reset(new SpeedControls());
+    if (!common::util::GetProtoFromFile(SpeedControlFile(),
+                                        speed_control_.get())) {
+      speed_control_->Clear();
+    }
+  }
+  return speed_control_.get();
+}  // namespace hdmap
 
 std::string BaseMapFile() {
   if (FLAGS_use_navigation_mode) {
@@ -80,7 +93,7 @@ std::unique_ptr<HDMap> CreateMap(const std::string& map_file_path) {
 
 std::unique_ptr<HDMap> CreateMap(const MapMsg& map_msg) {
   std::unique_ptr<HDMap> hdmap(new HDMap());
-  if (hdmap->LoadMapFromProto(map_msg.map()) != 0) {
+  if (hdmap->LoadMapFromProto(map_msg.hdmap()) != 0) {
     AERROR << "Failed to load RelativeMap: "
            << map_msg.header().ShortDebugString();
     return nullptr;

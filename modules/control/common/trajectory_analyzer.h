@@ -39,6 +39,7 @@ namespace control {
 /**
  * @class TrajectoryAnalyzer
  * @brief process point query and conversion related to trajectory
+   put all trajectory points of a trajectory into a trajectory vector
  */
 class TrajectoryAnalyzer {
  public:
@@ -83,7 +84,7 @@ class TrajectoryAnalyzer {
   common::TrajectoryPoint QueryNearestPointByRelativeTime(const double t) const;
 
   /**
-   * @brief query a point of trajectery that its position is closest
+   * @brief query a point """of""" trajectery that its position is closest
    * to the given position.
    * @param x value of x-coordination in the given position
    * @param y value of y-coordination in the given position
@@ -93,7 +94,7 @@ class TrajectoryAnalyzer {
                                                       const double y) const;
 
   /**
-   * @brief query a point on trajectery that its position is closest
+   * @brief query a point """on""" trajectery that its position is closest
    * to the given position.
    * @param x value of x-coordination in the given position
    * @param y value of y-coordination in the given position

@@ -57,8 +57,8 @@ using apollo::common::adapter::PlanningAdapter;
 using apollo::common::monitor::MonitorMessage;
 using apollo::common::monitor::MonitorMessageItem;
 using apollo::common::time::Clock;
-using apollo::common::time::ToSecond;
 using apollo::common::time::millis;
+using apollo::common::time::ToSecond;
 using apollo::common::util::DownsampleByAngle;
 using apollo::common::util::GetProtoFromFile;
 using apollo::hdmap::Path;
@@ -192,7 +192,9 @@ void UpdateTurnSignal(const apollo::common::VehicleSignal &signal,
   }
 }
 
-inline double SecToMs(const double sec) { return sec * 1000.0; }
+inline double SecToMs(const double sec) {
+  return sec * 1000.0;
+}
 
 }  // namespace
 
@@ -481,6 +483,10 @@ void SimulationWorldService::UpdateSimulationWorld(
   for (const auto &obstacle : obstacles.perception_obstacle()) {
     CreateWorldObjectIfAbsent(obstacle);
   }
+
+  if (obstacles.has_lane_marker()) {
+    world_.mutable_lane_marker()->CopyFrom(obstacles.lane_marker());
+  }
 }
 
 template <>
@@ -762,11 +768,7 @@ void SimulationWorldService::UpdatePlanningData(const PlanningData &data) {
     for (int index : sampled_indices) {
       const auto &path_point = path.path_point()[index];
       auto *point = downsampled_path->add_path_point();
-      point->set_x(path_point.x());
-      point->set_y(path_point.y());
-      point->set_s(path_point.s());
-      point->set_kappa(path_point.kappa());
-      point->set_dkappa(path_point.dkappa());
+      point->CopyFrom(path_point);
     }
   }
 }

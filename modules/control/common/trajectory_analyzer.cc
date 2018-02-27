@@ -34,6 +34,8 @@ namespace control {
 namespace {
 
 // Squared distance from the point to (x, y).
+// TrajectoryPoint includes PathPoint(coordinates,theta,kappa,kappa rate,s),
+//linear velocity, linear acceleration,t and lane number)
 double PointDistanceSquare(const TrajectoryPoint &point, const double x,
                            const double y) {
   const double dx = point.path_point().x() - x;
@@ -50,7 +52,11 @@ PathPoint TrajectoryPointToPathPoint(const TrajectoryPoint &point) {
 }
 
 }  // namespace
+// ADCTrajectoryPoint depracated, replaced by TrajectoryPoint,
+// route SL-coordinate depracated, don't have lane number
 
+// ADCTrajectory includes information such as header_time_, which the
+// absolute start time of the trajectory.
 TrajectoryAnalyzer::TrajectoryAnalyzer(
     const planning::ADCTrajectory *planning_published_trajectory) {
   header_time_ = planning_published_trajectory->header().timestamp_sec();
@@ -62,12 +68,14 @@ TrajectoryAnalyzer::TrajectoryAnalyzer(
         planning_published_trajectory->trajectory_point(i));
   }
 }
-
+// E.g. if point 3 has the least distance, then search between point 2
+// and point 4, return the interpolated shortest-distance trajectory point
 PathPoint TrajectoryAnalyzer::QueryMatchedPathPoint(const double x,
                                                     const double y) const {
   double d_min = PointDistanceSquare(trajectory_points_.front(), x, y);
+// sizee_t: unsigned int
   size_t index_min = 0;
-
+// find the min distance from points in trajectory to point(x,y)
   for (size_t i = 1; i < trajectory_points_.size(); ++i) {
     double d_temp = PointDistanceSquare(trajectory_points_[i], x, y);
     if (d_temp < d_min) {
@@ -112,7 +120,7 @@ void TrajectoryAnalyzer::ToTrajectoryFrame(const double x, const double y,
 
   // the sin of diff angle between vector (cos_ref_theta, sin_ref_theta) and
   // (dx, dy)
-  double cross_rd_nd = cos_ref_theta * dy - sin_ref_theta * dx;
+  double cross_rd_nd = cos_ref_theta * dy - sin_refptr_s_theta * dx;
   *ptr_d = cross_rd_nd;
 
   // the cos of diff angle between vector (cos_ref_theta, sin_ref_theta) and

@@ -18,7 +18,7 @@
  * @file
  **/
 
-#include "modules/planning/lattice/behavior_decider/path_time_neighborhood.h"
+#include "modules/planning/lattice/behavior_decider/path_time_graph.h"
 
 #include <algorithm>
 #include <cmath>
@@ -39,6 +39,7 @@ using apollo::common::PathPoint;
 using apollo::common::TrajectoryPoint;
 using apollo::common::math::Box2d;
 using apollo::perception::PerceptionObstacle;
+using apollo::common::math::lerp;
 
 namespace {
 
@@ -68,7 +69,7 @@ int LastIndexBefore(const prediction::Trajectory& trajectory, const double t) {
 
 }  // namespace
 
-PathTimeNeighborhood::PathTimeNeighborhood(
+PathTimeGraph::PathTimeGraph(
     const std::vector<const Obstacle*>& obstacles, const double ego_s,
     const std::vector<PathPoint>& discretized_ref_points) {
   path_range_.first = ego_s;
@@ -81,7 +82,7 @@ PathTimeNeighborhood::PathTimeNeighborhood(
   SetupObstacles(obstacles, discretized_ref_points);
 }
 
-SLBoundary PathTimeNeighborhood::ComputeObstacleBoundary(
+SLBoundary PathTimeGraph::ComputeObstacleBoundary(
     const Box2d& box,
     const std::vector<PathPoint>& discretized_ref_points) const {
   double start_s(std::numeric_limits<double>::max());
@@ -109,7 +110,7 @@ SLBoundary PathTimeNeighborhood::ComputeObstacleBoundary(
   return sl_boundary;
 }
 
-void PathTimeNeighborhood::SetupObstacles(
+void PathTimeGraph::SetupObstacles(
     const std::vector<const Obstacle*>& obstacles,
     const std::vector<PathPoint>& discretized_ref_points) {
 
@@ -200,7 +201,7 @@ void PathTimeNeighborhood::SetupObstacles(
   }
 }
 
-void PathTimeNeighborhood::SetStaticPathTimeObstacle(
+void PathTimeGraph::SetStaticPathTimeObstacle(
     const Obstacle* obstacle,
     const std::vector<PathPoint>& discretized_ref_points) {
   TrajectoryPoint start_point = obstacle->GetPointAtTime(0.0);
@@ -222,7 +223,7 @@ void PathTimeNeighborhood::SetStaticPathTimeObstacle(
                        FLAGS_trajectory_time_length));
 }
 
-double PathTimeNeighborhood::SpeedAtT(const std::string& obstacle_id,
+double PathTimeGraph::SpeedAtT(const std::string& obstacle_id,
                                       const double s, const double t) const {
   bool found =
       prediction_traj_map_.find(obstacle_id) != prediction_traj_map_.end();
@@ -267,7 +268,7 @@ double PathTimeNeighborhood::SpeedAtT(const std::string& obstacle_id,
   return std::cos(ref_theta) * v_x + std::sin(ref_theta) * v_y;
 }
 
-PathTimePoint PathTimeNeighborhood::SetPathTimePoint(
+PathTimePoint PathTimeGraph::SetPathTimePoint(
     const std::string& obstacle_id, const double s, const double t) const {
   PathTimePoint path_time_point;
   path_time_point.set_s(s);
@@ -278,11 +279,11 @@ PathTimePoint PathTimeNeighborhood::SetPathTimePoint(
 }
 
 const std::vector<PathTimeObstacle>&
-PathTimeNeighborhood::GetPathTimeObstacles() const {
+PathTimeGraph::GetPathTimeObstacles() const {
   return path_time_obstacles_;
 }
 
-bool PathTimeNeighborhood::GetPathTimeObstacle(
+bool PathTimeGraph::GetPathTimeObstacle(
     const std::string& obstacle_id, PathTimeObstacle* path_time_obstacle) {
   if (path_time_obstacle_map_.find(obstacle_id) ==
       path_time_obstacle_map_.end()) {
@@ -293,7 +294,7 @@ bool PathTimeNeighborhood::GetPathTimeObstacle(
 }
 
 std::vector<std::pair<double, double>>
-PathTimeNeighborhood::GetPathBlockingIntervals(const double t) const {
+PathTimeGraph::GetPathBlockingIntervals(const double t) const {
   CHECK(time_range_.first <= t && t <= time_range_.second);
   std::vector<std::pair<double, double>> intervals;
   for (const auto& pt_obstacle : path_time_obstacles_) {
@@ -314,7 +315,7 @@ PathTimeNeighborhood::GetPathBlockingIntervals(const double t) const {
 }
 
 std::vector<std::vector<std::pair<double, double>>>
-PathTimeNeighborhood::GetPathBlockingIntervals(const double t_start,
+PathTimeGraph::GetPathBlockingIntervals(const double t_start,
                                                const double t_end,
                                                const double t_resolution) {
   std::vector<std::vector<std::pair<double, double>>> intervals;
@@ -324,12 +325,56 @@ PathTimeNeighborhood::GetPathBlockingIntervals(const double t_start,
   return intervals;
 }
 
-std::pair<double, double> PathTimeNeighborhood::get_path_range() const {
+std::pair<double, double> PathTimeGraph::get_path_range() const {
   return path_range_;
 }
 
-std::pair<double, double> PathTimeNeighborhood::get_time_range() const {
+std::pair<double, double> PathTimeGraph::get_time_range() const {
   return time_range_;
+}
+
+std::vector<std::pair<double, double> >
+PathTimeGraph::GetPathTimeNeighborhoodPoints(const std::size_t index,
+                                             const double s_dist,
+                                             const double t_min_density) const {
+  CHECK(index < path_time_obstacles_.size());
+  CHECK(t_min_density > 0.0);
+
+  const auto& pt_obstacle = path_time_obstacles_[index];
+
+  double s0 = 0.0;
+  double s1 = 0.0;
+
+  double t0 = 0.0;
+  double t1 = 0.0;
+  if (s_dist > 0.0) {
+    s0 = pt_obstacle.upper_left().s();
+    s1 = pt_obstacle.upper_right().s();
+
+    t0 = pt_obstacle.upper_left().t();
+    t1 = pt_obstacle.upper_right().t();
+  } else {
+    s0 = pt_obstacle.bottom_left().s();
+    s1 = pt_obstacle.bottom_right().s();
+
+    t0 = pt_obstacle.bottom_left().t();
+    t1 = pt_obstacle.bottom_right().t();
+  }
+
+  CHECK(t1 > t0);
+
+  std::size_t num_sections = std::size_t((t1 - t0) / t_min_density) + 1;
+  double t_interval = (t1 - t0) / num_sections;
+
+  std::vector<std::pair<double, double>> pt_pairs;
+  for (std::size_t i = 0; i <= num_sections; ++i) {
+    double t = t_interval * i + t0;
+    double s = lerp(s0, t0, s1, t1, t) + s_dist;
+
+    pt_pairs.emplace_back(s, t);
+  }
+
+  return pt_pairs;
 }
 
 }  // namespace planning

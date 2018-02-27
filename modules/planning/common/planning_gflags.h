@@ -24,7 +24,7 @@ DECLARE_double(test_duration);
 
 DECLARE_string(planning_config_file);
 DECLARE_string(planning_adapter_config_filename);
-DECLARE_string(smoother_config_file);
+DECLARE_string(smoother_config_filename);
 DECLARE_int32(planning_loop_rate);
 DECLARE_string(rtk_trajectory_filename);
 DECLARE_uint64(rtk_trajectory_forward);
@@ -178,6 +178,9 @@ DECLARE_double(stop_sign_min_pass_distance);
 DECLARE_double(stop_sign_stop_distance);
 DECLARE_double(stop_sign_max_watch_vehicle_stop_speed);
 DECLARE_double(stop_sign_creep_buffer);
+DECLARE_bool(enable_sidepass);
+DECLARE_double(sidepass_wait_time_sec);
+
 /// destination
 DECLARE_string(destination_obstacle_id);
 DECLARE_double(destination_check_distance);

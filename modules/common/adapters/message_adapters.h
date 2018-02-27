@@ -38,7 +38,7 @@
 #include "modules/localization/proto/imu.pb.h"
 #include "modules/localization/proto/localization.pb.h"
 #include "modules/localization/proto/sins_pva.pb.h"
-#include "modules/map/proto/map_msg.pb.h"
+#include "modules/map/relative_map/proto/navigation.pb.h"
 #include "modules/monitor/proto/system_status.pb.h"
 #include "modules/perception/proto/perception_obstacle.pb.h"
 #include "modules/perception/proto/traffic_light_detection.pb.h"
@@ -100,7 +100,8 @@ using LocalizationMsfSinsPvaAdapter =
     Adapter<apollo::localization::IntegSinsPva>;
 using LocalizationMsfStatusAdapter =
     Adapter<apollo::localization::LocalizationStatus>;
-using RelativeMapAdapter = Adapter<apollo::hdmap::MapMsg>;
+using RelativeMapAdapter = Adapter<apollo::relative_map::MapMsg>;
+using NavigationAdapter = Adapter<apollo::relative_map::NavigationInfo>;
 
 }  // namespace adapter
 }  // namespace common

@@ -19,17 +19,16 @@ proto_library(
         "map_id.proto",
         "map_junction.proto",
         "map_lane.proto",
-        "map_msg.proto",
         "map_overlap.proto",
         "map_road.proto",
         "map_signal.proto",
         "map_speed_bump.proto",
+        "map_speed_control.proto",
         "map_stop_sign.proto",
         "map_yield_sign.proto",
     ],
     deps = [
         "//modules/common/proto:common_proto_lib",
-        "//modules/common/proto:header_proto_lib",
     ],
 )
 

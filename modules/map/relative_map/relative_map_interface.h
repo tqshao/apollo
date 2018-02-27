@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright 2017 The Apollo Authors. All Rights Reserved.
+ * Copyright 2018 The Apollo Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef MODULES_MAP_RELATIVE_MAP_RELATIVE_MAP_INTERFACE_H_
 #define MODULES_MAP_RELATIVE_MAP_RELATIVE_MAP_INTERFACE_H_
 
-#include "modules/map/proto/map_msg.pb.h"
+#include "modules/map/relative_map/proto/navigation.pb.h"
 #include "modules/perception/proto/perception_obstacle.pb.h"
 
 #include "modules/common/adapters/adapter_manager.h"
@@ -51,7 +51,7 @@ class RelativeMapInterface : public apollo::common::ApolloApp {
   /**
    * @brief Fill the header and publish the prediction message.
    */
-  void Publish(hdmap::MapMsg *relative_map) {
+  void Publish(MapMsg *relative_map) {
     apollo::common::adapter::AdapterManager::FillRelativeMapHeader(
         Name(), relative_map);
     apollo::common::adapter::AdapterManager::PublishRelativeMap(*relative_map);
