@@ -242,6 +242,7 @@ void LatController::CloseLogFile() {
 
 void LatController::LoadLatGainScheduler(
     const LatControllerConf &lat_controller_conf) {
+      // lat_err_gain_scheduler has two members, speed and ratio
   const auto &lat_err_gain_scheduler =
       lat_controller_conf.lat_err_gain_scheduler();
   const auto &heading_err_gain_scheduler =
@@ -254,7 +255,7 @@ void LatController::LoadLatGainScheduler(
   for (const auto &scheduler : heading_err_gain_scheduler.scheduler()) {
     xy2.push_back(std::make_pair(scheduler.speed(), scheduler.ratio()));
   }
-
+  // std::unique_ptr<Interpolation1D> lat_err_interpolation_
   lat_err_interpolation_.reset(new Interpolation1D);
   CHECK(lat_err_interpolation_->Init(xy1))
       << "Fail to load lateral error gain scheduler";
