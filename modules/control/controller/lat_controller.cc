@@ -95,6 +95,7 @@ LatController::~LatController() {
   CloseLogFile();
 }
 
+// load both vehicle paramters and control parameters
 bool LatController::LoadControlConf(const ControlConf *control_conf) {
   if (!control_conf) {
     AERROR << "[LatController] control_conf == nullptr";
@@ -107,13 +108,14 @@ bool LatController::LoadControlConf(const ControlConf *control_conf) {
   CHECK_GT(ts_, 0.0) << "[LatController] Invalid control update interval.";
   cf_ = control_conf->lat_controller_conf().cf();
   cr_ = control_conf->lat_controller_conf().cr();
+  // preview_window: window size of mean filter
   preview_window_ = control_conf->lat_controller_conf().preview_window();
   wheelbase_ = vehicle_param_.wheel_base();
   steer_transmission_ratio_ = vehicle_param_.steer_ratio();
   steer_single_direction_max_degree_ =
       vehicle_param_.max_steer_angle() / M_PI * 180;
   max_lat_acc_ = control_conf->lat_controller_conf().max_lateral_acceleration();
-
+  // Distinguish difference between vehicle_params and control_conf
   const double mass_fl = control_conf->lat_controller_conf().mass_fl();
   const double mass_fr = control_conf->lat_controller_conf().mass_fr();
   const double mass_rl = control_conf->lat_controller_conf().mass_rl();
@@ -121,7 +123,7 @@ bool LatController::LoadControlConf(const ControlConf *control_conf) {
   const double mass_front = mass_fl + mass_fr;
   const double mass_rear = mass_rl + mass_rr;
   mass_ = mass_front + mass_rear;
-
+  // distance from front wheel center to COM
   lf_ = wheelbase_ * (1.0 - mass_front / mass_);
   lr_ = wheelbase_ * (1.0 - mass_rear / mass_);
   iz_ = lf_ * lf_ * mass_front + lr_ * lr_ * mass_rear;
@@ -170,6 +172,7 @@ void LatController::InitializeFilters(const ControlConf *control_conf) {
   common::LpfCoefficients(
       ts_, control_conf->lat_controller_conf().cutoff_freq(), &den, &num);
   digital_filter_.set_coefficients(den, num);
+  // copy the lateral and heading mean error filter
   lateral_error_filter_ = common::MeanFilter(
       control_conf->lat_controller_conf().mean_filter_window_size());
   heading_error_filter_ = common::MeanFilter(
