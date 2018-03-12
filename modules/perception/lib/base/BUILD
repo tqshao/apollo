@@ -12,7 +12,9 @@ cc_library(
     hdrs = [
         "concurrent_queue.h",
         "mutex.h",
+        "noncopyable.h",
         "registerer.h",
+        "singleton.h",
         "thread.h",
         "time_util.h",
         "timer.h",

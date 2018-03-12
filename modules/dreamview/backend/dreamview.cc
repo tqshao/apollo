@@ -62,6 +62,8 @@ Status Dreamview::Init() {
 
   // Check the expected adapters are initialized.
   CHECK(AdapterManager::GetChassis()) << "ChassisAdapter is not initialized.";
+  CHECK(AdapterManager::GetControlCommand())
+      << "ControlCommandAdapter is not initialized.";
   CHECK(AdapterManager::GetGps()) << "GpsAdapter is not initialized.";
   CHECK(AdapterManager::GetPlanning()) << "PlanningAdapter is not initialized.";
   CHECK(AdapterManager::GetLocalization())
@@ -86,6 +88,8 @@ Status Dreamview::Init() {
       << "ImageShortAdapter is not initialized.";
   CHECK(AdapterManager::GetPointCloud())
       << "PointCloudAdapter is not initialized.";
+  CHECK(AdapterManager::GetRelativeMap())
+      << "RelativeMapAdapter is not initialized.";
 
   // Initialize and run the web server which serves the dreamview htmls and
   // javascripts and handles websocket requests.

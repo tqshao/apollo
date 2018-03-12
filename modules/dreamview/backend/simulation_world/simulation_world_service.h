@@ -37,6 +37,7 @@
 #include "modules/common/adapters/adapter_manager.h"
 #include "modules/common/log.h"
 #include "modules/common/monitor_log/monitor_log_buffer.h"
+#include "modules/common/proto/pnc_point.pb.h"
 
 /**
  * @namespace apollo::dreamview
@@ -58,6 +59,9 @@ class SimulationWorldService {
   // The maximum number of monitor message items to be kept in
   // SimulationWorld.
   static constexpr int kMaxMonitorItems = 30;
+
+  // Angle threshold is about 5.72 degree.
+  static constexpr double kAngleThreshold = 0.1;
 
   /**
    * @brief Constructor of SimulationWorldService.
@@ -141,6 +145,8 @@ class SimulationWorldService {
 
   void GetMapElementIds(double radius, MapElementIds *ids) const;
 
+  const apollo::hdmap::Map &GetRelativeMap() const;
+
   nlohmann::json GetRoutePathAsJson() const;
 
  private:
@@ -169,8 +175,12 @@ class SimulationWorldService {
   void UpdateMainDecision(const apollo::planning::MainDecision &main_decision,
                           double update_timestamp_sec, Object *world_main_stop);
   void CreatePredictionTrajectory(
-      Object *world_object,
-      const apollo::prediction::PredictionObstacle &obstacle);
+      const apollo::prediction::PredictionObstacle &obstacle,
+      Object *world_object);
+
+  void DownsamplePath(const apollo::common::Path &paths,
+                      apollo::common::Path *downsampled_path);
+
   void UpdatePlanningData(const apollo::planning_internal::PlanningData &data);
 
   void PopulateMapInfo(double radius);
@@ -221,6 +231,9 @@ class SimulationWorldService {
   // Whether to clear the SimulationWorld in the next timer cycle, set by
   // frontend request.
   bool to_clear_ = false;
+
+  // Relative map used/retrieved in navigation mode
+  apollo::hdmap::Map relative_map_;
 
   FRIEND_TEST(SimulationWorldServiceTest, UpdateMonitorSuccess);
   FRIEND_TEST(SimulationWorldServiceTest, UpdateMonitorRemove);

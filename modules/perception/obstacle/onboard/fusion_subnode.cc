@@ -63,7 +63,7 @@ bool FusionSubnode::InitInternal() {
 }
 
 bool FusionSubnode::InitOutputStream() {
-  // expect _reserve format:
+  // expect reserve_ format:
   //       pub_driven_event_id:n
   //       lidar_output_stream : event_id=n&sink_type=m&sink_name=x
   //       radar_output_stream : event_id=n&sink_type=m&sink_name=x
@@ -179,9 +179,9 @@ bool FusionSubnode::BuildSensorObjs(
     // Make sure timestamp and type are filled.
     sensor_objects->timestamp = event.timestamp;
     if (event.event_id == lidar_event_id_) {
-      sensor_objects->sensor_type = VELODYNE_64;
+      sensor_objects->sensor_type = SensorType::VELODYNE_64;
     } else if (event.event_id == radar_event_id_) {
-      sensor_objects->sensor_type = RADAR;
+      sensor_objects->sensor_type = SensorType::RADAR;
     } else {
       AERROR << "Event id is not supported. event:" << event.to_string();
       return false;

@@ -25,6 +25,7 @@ cc_library(
         "frenet_frame_path.h",
     ],
     deps = [
+        "//modules/common/math:linear_interpolation",
         "//modules/common/proto:pnc_point_proto",
         "//modules/planning/common:planning_util",
     ],
@@ -41,8 +42,8 @@ cc_library(
     deps = [
         ":discretized_path",
         ":frenet_frame_path",
+        "//modules/common/math:cartesian_frenet_conversion",
         "//modules/planning/common:planning_gflags",
-        "//modules/planning/math/frame_conversion:cartesian_frenet_conversion",
         "//modules/planning/reference_line",
     ],
 )

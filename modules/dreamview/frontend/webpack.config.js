@@ -13,7 +13,6 @@ module.exports = {
 
     entry: {
         app: "./app.js",
-        navigation: "./utils/navigation/index.js"
     },
 
     output: {
@@ -29,7 +28,7 @@ module.exports = {
         // without the extension.
         //
         // Needs ".json" and ".scss" for Grommet.
-        extensions: [".wepack.js", ".web.js",
+        extensions: [".webpack.js", ".web.js",
                      ".jsx", ".js",
                      ".json",
                      ".scss", ".css",
@@ -150,11 +149,20 @@ module.exports = {
                 test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
                 loader: "file-loader",
             }, {
-                test: /\.webworker\.js$/,
-                use: {
+                test: /webworker\.js$/,
+                use: [
+                {
                     loader: 'worker-loader',
-                    options: { inline: true },
+                    options: {
+                        name: 'worker.bundle.js'
+                    },
                 },
+                {
+                    loader: "babel-loader",
+                    options: {
+                        presets: ["es2015"],
+                    }
+                }]
             },
         ]
     },
@@ -172,10 +180,6 @@ module.exports = {
         new FaviconsWebpackPlugin("./favicon.png"),
         new CopyWebpackPlugin([
             {
-                from: 'components/Navigation/navigation_viewer.html',
-                to:  'components/Navigation/navigation_viewer.html',
-                toType: 'file',
-            }, {
                 from: '../node_modules/three/examples/fonts',
                 to: 'fonts',
             }
